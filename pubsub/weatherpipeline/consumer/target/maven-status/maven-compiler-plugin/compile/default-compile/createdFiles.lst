@@ -1,1 +1,5 @@
 com/xavierruiz/app/Main.class
+com/xavierruiz/models/Data.class
+com/xavierruiz/models/Current$Condition.class
+com/xavierruiz/models/Current.class
+com/xavierruiz/models/Location.class

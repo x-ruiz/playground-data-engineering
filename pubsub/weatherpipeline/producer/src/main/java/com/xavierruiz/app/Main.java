@@ -24,7 +24,7 @@ public class Main {
             // TODO: Add filter to only publish night time weather
 
             // Produce to a topic
-            String topic = "weather_chicago_night";
+            String topic = "weather_chicago";
             String project = "unified-gist-464917-r7";
             Publisher publisher = createPublisher(project, topic);
             publishMessage(response, publisher);
