@@ -19,6 +19,11 @@ public class Main {
     private static void subscribeAsync(String projectId, String subscriptionId) {
         ProjectSubscriptionName subscriptionName = ProjectSubscriptionName.of(projectId, subscriptionId);
 
+        // Define a lambda function to handle incoming messages.
+        // A lambda function is a concise way to implement a functional interface (an
+        // interface with a single abstract method).
+        // Here, the lambda implements the MessageReceiver interface, which requires
+        // handling a PubsubMessage and an AckReplyConsumer.
         MessageReceiver receiver = (PubsubMessage message, AckReplyConsumer consumer) -> {
             // handle the message and then ack
             System.out.println("Id: " + message.getMessageId());
@@ -28,6 +33,11 @@ public class Main {
 
         Subscriber subscriber = null;
         try {
+            // Use the builder pattern to create a Subscriber instance.
+            // The builder pattern is a design pattern used to construct complex objects
+            // step-by-step.
+            // It ensures the Subscriber is configured correctly with the subscription name
+            // and message receiver.
             subscriber = Subscriber.newBuilder(subscriptionName, receiver).build();
             subscriber.startAsync().awaitRunning();
             System.out.printf("Listening for messages on %s: \n", subscriptionName.toString());
