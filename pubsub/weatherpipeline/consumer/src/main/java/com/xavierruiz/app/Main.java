@@ -11,7 +11,7 @@ import java.util.concurrent.TimeoutException;
 public class Main {
     public static void main(String[] args) {
         String projectId = "unified-gist-464917-r7";
-        String subscriptionId = "test-subscription";
+        String subscriptionId = "weather_chicago_night";
         System.out.printf("Consuming messages from subscription %s \n", subscriptionId);
         subscribeAsync(projectId, subscriptionId);
     }
