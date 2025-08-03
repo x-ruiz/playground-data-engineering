@@ -1,0 +1,6 @@
+City,Date,Temperature,Condition
+New York,2023-10-01,68,Sunny
+Los Angeles,2023-10-01,75,Cloudy
+Chicago,2023-10-01,60,Rainy
+Houston,2023-10-01,80,Sunny
+Phoenix,2023-10-01,85,Sunny
