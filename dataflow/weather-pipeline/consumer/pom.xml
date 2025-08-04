@@ -4,10 +4,10 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.xavierruiz.app</groupId>
-  <artifactId>weather-pipeline</artifactId>
+  <artifactId>weather-pipeline-consumer</artifactId>
   <version>1.0-SNAPSHOT</version>
 
-  <name>weather-pipeline</name>
+  <name>weather-pipeline-consumer</name>
   <!-- FIXME change it to the project's website -->
   <url>http://www.example.com</url>
 
@@ -30,10 +30,26 @@
   </dependencyManagement>
 
   <dependencies>
+    <!-- Json Converter -->
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>2.13.1</version>
+    </dependency>
     <!-- Adds a dependency on the Beam SDK. -->
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-sdks-java-core</artifactId>
+      <version>${beam.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>beam-sdks-java-io-google-cloud-platform</artifactId>
+      <version>${beam.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>beam-sdks-java-extensions-google-cloud-platform-core</artifactId>
       <version>${beam.version}</version>
     </dependency>
     <!-- Beam Direct Runner Dependency-->

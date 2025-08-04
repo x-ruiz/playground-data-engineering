@@ -1,7 +1,7 @@
 terraform {
   backend "gcs" {
     bucket = "tf-state-17xh"
-    prefix = "weather-pipeline"
+    prefix = "pubsub/weather-pipeline"
   }
 }
 provider "google" {

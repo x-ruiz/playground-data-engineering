@@ -16,17 +16,15 @@ public class Main {
         long pollingInterval = 30000; // 30 seconds
         int iterations = 10;
         WeatherApi chicagoApi = new WeatherApi("chicago");
+        // Produce to a topic
+        String topic = "weather_chicago";
+        String project = "unified-gist-464917-r7";
+        Publisher publisher = createPublisher(project, topic);
 
         for (int i = 0; i <= iterations; i++) {
             System.out.printf("Iteration %d \n", i);
             String response = chicagoApi.getRequest();
 
-            // TODO: Add filter to only publish night time weather
-
-            // Produce to a topic
-            String topic = "weather_chicago";
-            String project = "unified-gist-464917-r7";
-            Publisher publisher = createPublisher(project, topic);
             publishMessage(response, publisher);
             try {
                 System.out.printf("Sleeping for %d seconds \n", pollingInterval / 1000);
@@ -34,8 +32,8 @@ public class Main {
             } catch (InterruptedException e) {
                 System.out.println("Sleep execution interrupted: " + e);
             }
-            shutdownPublisher(publisher);
         }
+        shutdownPublisher(publisher);
     }
 
     private static Publisher createPublisher(String projectId, String topicId) {
