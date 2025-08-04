@@ -29,10 +29,14 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import com.google.api.services.bigquery.model.TableRow;
+import com.google.api.services.bigquery.model.TableSchema;
+
+import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
+
 import com.xavierruiz.app.schemas.WeatherPipelineSchema;
 
 public class WeatherConsumer {
-  String tableSpec = "dataflow.weather_pipeline_raw";
 
   public interface WeatherConsumerOptions extends GcpOptions {
     // @Description("Path of file to read from")
@@ -86,32 +90,106 @@ public class WeatherConsumer {
 
   // Json Object Converter DoFn
   public static class JsonObjectFn extends DoFn<String, JsonObject> {
-    private final Gson gson = new Gson();
+    private transient Gson gson;
+
+    @Setup
+    public void setup() {
+      gson = new Gson(); // Initialize Gson during setup
+    }
 
     @ProcessElement
     public void processElement(@Element String line, OutputReceiver<JsonObject> receiver) {
       JsonObject jsonObject = gson.fromJson(line, JsonObject.class);
-      receiver.output(jsonObject);
+      receiver.output(jsonObject); // Emit the JsonObject
     }
   }
 
   // Convert Json Object to Table Row for Writing DoFn
-  public static class TableRowFn extends DoFn<JsonObject, Void> {
+  public static class JsonToTableRowFn extends DoFn<JsonObject, TableRow> {
     @ProcessElement
-    public void processElement(@Element JsonObject jsonObject, OutputReceiver<Void> receiver) {
-      System.out.printf("Test: %s", jsonObject.get("city_name").getAsString());
+    public void processElement(@Element JsonObject jsonObject, OutputReceiver<TableRow> receiver) {
+      JsonObject location = jsonObject.get("location").getAsJsonObject();
+      JsonObject current = jsonObject.get("current").getAsJsonObject();
+      System.out.printf("Writing Received Message to BigQuery table - Event time: %s \n",
+          location.get("localtime").getAsString());
+
+      TableRow row = new TableRow();
+      // Populate TableRow fields based on schema
+      row.set("city_name", location.get("name").getAsString());
+      row.set("region", location.get("region").getAsString());
+      row.set("country", location.get("country").getAsString());
+      row.set("lat", location.get("lat").getAsDouble());
+      row.set("lon", location.get("lon").getAsDouble());
+      row.set("tz_id", location.get("tz_id").getAsString());
+      row.set("localtime_epoch", location.get("localtime_epoch").getAsInt());
+      row.set("localtime", location.get("localtime").getAsString());
+
+      // Current weather fields
+      row.set("last_updated_epoch", current.get("last_updated_epoch").getAsInt());
+      row.set("last_updated", current.get("last_updated").getAsString());
+      row.set("temp_c", current.get("temp_c").getAsDouble());
+      row.set("temp_f", current.get("temp_f").getAsDouble());
+      row.set("is_day", current.get("is_day").getAsInt());
+      row.set("wind_mph", current.get("wind_mph").getAsDouble());
+      row.set("wind_kph", current.get("wind_kph").getAsDouble());
+      row.set("wind_degree", current.get("wind_degree").getAsInt());
+      row.set("wind_dir", current.get("wind_dir").getAsString());
+      row.set("pressure_mb", current.get("pressure_mb").getAsDouble());
+      row.set("pressure_in", current.get("pressure_in").getAsDouble());
+      row.set("precip_mm", current.get("precip_mm").getAsDouble());
+      row.set("precip_in", current.get("precip_in").getAsDouble());
+      row.set("humidity", current.get("humidity").getAsInt());
+      row.set("cloud", current.get("cloud").getAsInt());
+      row.set("feelslike_c", current.get("feelslike_c").getAsDouble());
+      row.set("feelslike_f", current.get("feelslike_f").getAsDouble());
+      row.set("windchill_c", current.get("windchill_c").getAsDouble());
+      row.set("windchill_f", current.get("windchill_f").getAsDouble());
+      row.set("heatindex_c", current.get("heatindex_c").getAsDouble());
+      row.set("heatindex_f", current.get("heatindex_f").getAsDouble());
+      row.set("dewpoint_c", current.get("dewpoint_c").getAsDouble());
+      row.set("dewpoint_f", current.get("dewpoint_f").getAsDouble());
+      row.set("vis_km", current.get("vis_km").getAsDouble());
+      row.set("vis_miles", current.get("vis_miles").getAsDouble());
+      row.set("uv", current.get("uv").getAsDouble());
+      row.set("gust_mph", current.get("gust_mph").getAsDouble());
+      row.set("gust_kph", current.get("gust_kph").getAsDouble());
+      row.set("short_rad", current.get("short_rad").getAsDouble());
+      row.set("diff_rad", current.get("diff_rad").getAsDouble());
+      row.set("dni", current.get("dni").getAsDouble());
+      row.set("gti", current.get("gti").getAsDouble());
+
+      // Nested 'condition' record
+      JsonObject condition = current.get("condition").getAsJsonObject();
+      TableRow conditionRow = new TableRow();
+      conditionRow.set("text", condition.get("text").getAsString());
+      conditionRow.set("icon", condition.get("icon").getAsString());
+      conditionRow.set("code", condition.get("code").getAsInt());
+      row.set("condition", conditionRow);
+
+      // Output the TableRow
+      receiver.output(row);
     }
   }
 
   static void runPipeline(WeatherConsumerOptions options) {
+    String tableSpec = "dataflow.weather_pipeline_raw";
+    TableSchema weatherSchema = WeatherPipelineSchema.getFields();
+
     Pipeline p = Pipeline.create(options);
     // Creates a subscription at runtime
     p.apply("PubSub Subscription",
         PubsubIO.readStrings().fromTopic("projects/unified-gist-464917-r7/topics/weather_chicago"))
-        .apply("Log lines", ParDo.of(new LogLinesFn())) // ParDo: The general process to apply transformations
+        // .apply("Log lines", ParDo.of(new LogLinesFn())) // ParDo: The general process
+        // to apply transformations
         .apply("Convert to Json Object", ParDo.of(new JsonObjectFn())) // Conver each line from pubsub to JsonObject
         .setCoder(JsonObjectCoder.of())
-        .apply("Convert Json Object to Table Row", ParDo.of(new TableRowFn()));
+        .apply("Convert Json Object to Table Row", ParDo.of(new JsonToTableRowFn()))
+        .apply("Write to BigQuery Iceberg Raw Table",
+            BigQueryIO.writeTableRows().to(tableSpec).withSchema(weatherSchema)
+                .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_NEVER) // Throws error if table does
+                                                                                        // not exist
+                .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_APPEND)); // Appends new rows to existing
+                                                                                        // rows
     p.run().waitUntilFinish();
   }
 

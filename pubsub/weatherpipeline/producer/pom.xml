@@ -5,7 +5,7 @@
 
   <groupId>com.xavierruiz.app</groupId>
   <artifactId>weather-producer</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 
   <name>weather-producer</name>
   <!-- FIXME change it to the project's website -->
@@ -57,6 +57,16 @@
 
   <build>
     <plugins>
+      <!-- For Containerization-->
+      <plugin>
+        <groupId>com.google.cloud.tools</groupId>
+        <artifactId>jib-maven-plugin</artifactId>
+        <version>3.4.1</version> <configuration>
+          <to>
+            <image>us-central1-docker.pkg.dev/unified-gist-464917-r7/internal/weather-pipeline-producer:${version}</image>
+          </to>
+        </configuration>
+      </plugin>
       <plugin>
         <!--For fat jars-->
         <groupId>org.apache.maven.plugins</groupId>

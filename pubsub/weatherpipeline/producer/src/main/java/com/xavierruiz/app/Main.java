@@ -13,26 +13,16 @@ import java.util.concurrent.TimeUnit;
 // Flink Application that makes a request to endpoint and produces data to a pubsub sink
 public class Main {
     public static void main(String[] args) {
-        long pollingInterval = 30000; // 30 seconds
-        int iterations = 10;
         WeatherApi chicagoApi = new WeatherApi("chicago");
         // Produce to a topic
         String topic = "weather_chicago";
         String project = "unified-gist-464917-r7";
         Publisher publisher = createPublisher(project, topic);
 
-        for (int i = 0; i <= iterations; i++) {
-            System.out.printf("Iteration %d \n", i);
-            String response = chicagoApi.getRequest();
+        String response = chicagoApi.getRequest();
 
-            publishMessage(response, publisher);
-            try {
-                System.out.printf("Sleeping for %d seconds \n", pollingInterval / 1000);
-                Thread.sleep(pollingInterval);
-            } catch (InterruptedException e) {
-                System.out.println("Sleep execution interrupted: " + e);
-            }
-        }
+        publishMessage(response, publisher);
+
         shutdownPublisher(publisher);
     }
 
