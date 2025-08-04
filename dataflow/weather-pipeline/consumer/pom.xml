@@ -5,7 +5,7 @@
 
   <groupId>com.xavierruiz.app</groupId>
   <artifactId>weather-pipeline-consumer</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 
   <name>weather-pipeline-consumer</name>
   <!-- FIXME change it to the project's website -->
@@ -52,6 +52,11 @@
       <artifactId>beam-sdks-java-extensions-google-cloud-platform-core</artifactId>
       <version>${beam.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>beam-runners-google-cloud-dataflow-java</artifactId>
+      <version>${beam.version}</version>
+    </dependency>
     <!-- Beam Direct Runner Dependency-->
     <dependency>
       <groupId>org.apache.beam</groupId>
@@ -73,6 +78,44 @@
   </dependencies>
 
   <build>
+    <plugins>
+      <!-- For Containerization-->
+      <plugin>
+        <groupId>com.google.cloud.tools</groupId>
+        <artifactId>jib-maven-plugin</artifactId>
+        <version>3.4.1</version> <configuration>
+          <to>
+            <image>us-central1-docker.pkg.dev/unified-gist-464917-r7/internal/weather-pipeline-consumer:${version}</image>
+          </to>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.4.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
     <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
       <plugins>
         <!-- clean lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#clean_Lifecycle -->

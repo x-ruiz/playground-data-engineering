@@ -5,6 +5,8 @@ import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Validation.Required;
+import org.apache.beam.runners.dataflow.DataflowRunner;
+import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 
 import org.apache.beam.sdk.extensions.gcp.options.GcpOptions;
 
@@ -38,26 +40,26 @@ import com.xavierruiz.app.schemas.WeatherPipelineSchema;
 
 public class WeatherConsumer {
 
-  public interface WeatherConsumerOptions extends GcpOptions {
-    // @Description("Path of file to read from")
-    // @Default.String("inputs/input.txt")
-    // String getInputFile();
+  // public interface WeatherConsumerOptions extends GcpOptions {
+  // // @Description("Path of file to read from")
+  // // @Default.String("inputs/input.txt")
+  // // String getInputFile();
 
-    // void setInputFile(String value);
+  // // void setInputFile(String value);
 
-    @Description("Path of file to output to")
-    @Default.String("outputs/output.txt")
-    String getOutputFile();
+  // @Description("Path of file to output to")
+  // @Default.String("outputs/output.txt")
+  // String getOutputFile();
 
-    void setOutputFile(String value);
+  // void setOutputFile(String value);
 
-    @Description("GCP Project that google resources are located in")
-    @Default.InstanceFactory(GcpOptions.DefaultProjectFactory.class)
-    @Required
-    String getProject();
+  // @Description("GCP Project that google resources are located in")
+  // @Default.InstanceFactory(GcpOptions.DefaultProjectFactory.class)
+  // @Required
+  // String getProject();
 
-    void setProject(String value);
-  }
+  // void setProject(String value);
+  // }
 
   // Customer Encoders
   public static class JsonObjectCoder extends CustomCoder<JsonObject> {
@@ -171,14 +173,15 @@ public class WeatherConsumer {
     }
   }
 
-  static void runPipeline(WeatherConsumerOptions options) {
+  static void runPipeline(DataflowPipelineOptions options) {
+    // static void runPipeline(WeatherConsumerOptions options) {
     String tableSpec = "dataflow.weather_pipeline_raw";
     TableSchema weatherSchema = WeatherPipelineSchema.getFields();
 
     Pipeline p = Pipeline.create(options);
     // Creates a subscription at runtime
     p.apply("PubSub Subscription",
-        PubsubIO.readStrings().fromTopic("projects/unified-gist-464917-r7/topics/weather_chicago"))
+        PubsubIO.readStrings().fromSubscription("projects/unified-gist-464917-r7/subscriptions/weather_chicago"))
         // .apply("Log lines", ParDo.of(new LogLinesFn())) // ParDo: The general process
         // to apply transformations
         .apply("Convert to Json Object", ParDo.of(new JsonObjectFn())) // Conver each line from pubsub to JsonObject
@@ -195,8 +198,18 @@ public class WeatherConsumer {
 
   public static void main(String[] args) {
     System.out.println("Starting Weather Consumer Beam Pipeline Set Up");
-    WeatherConsumerOptions options = PipelineOptionsFactory.fromArgs(args).withValidation()
-        .as(WeatherConsumerOptions.class);
+    // WeatherConsumerOptions options =
+    // PipelineOptionsFactory.fromArgs(args).withValidation()
+    // .as(WeatherConsumerOptions.class);
+    DataflowPipelineOptions options = PipelineOptionsFactory.fromArgs(args).withValidation()
+        .as(DataflowPipelineOptions.class);
+    options.setRunner(DataflowRunner.class);
+
+    // Set other Dataflow-specific options
+    options.setProject("unified-gist-464917-r7");
+    options.setRegion("us-central1");
+    options.setGcpTempLocation("gs://raw_data_0spq/dataflow/weather-pipeline/temp");
+    // options.setGcpStagingLocation("gs://raw_data_0spq/dataflow/weather-pipeline/staging");
 
     runPipeline(options);
   }

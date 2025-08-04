@@ -1,0 +1,15 @@
+{
+    "image": "us-central1-docker.pkg.dev/unified-gist-464917-r7/internal/weather-pipeline-consumer:1.0.0",
+    "sdk_info": {
+        "language": "JAVA"
+    },
+    "environment": {
+        "tempLocation": "gs://raw_data_0spq/dataflow/weather-pipeline/temp",
+        "stagingLocation": "gs://raw_data_0spq/dataflow/weather-pipeline/staging"
+    },
+    "parameters": {
+        "runner": "DataflowRunner",
+        "project": "unified-gist-464917-r7",
+        "region": "us-central1"
+    }
+}
