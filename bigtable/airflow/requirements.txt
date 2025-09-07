@@ -1,0 +1,5 @@
+# Astro Runtime includes the following pre-installed providers packages: https://www.astronomer.io/docs/astro/runtime-image-architecture#provider-packages
+pendulum
+# apache-airflow-providers-google
+google-cloud-bigtable==2.30.1
+google-cloud-core==2.4.3
