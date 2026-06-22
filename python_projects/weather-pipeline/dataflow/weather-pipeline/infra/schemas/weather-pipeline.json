@@ -1,0 +1,224 @@
+[
+    {
+        "name": "city_name",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "region",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "country",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "lat",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "lon",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "tz_id",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "localtime_epoch",
+        "type": "INTEGER",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "localtime",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "last_updated_epoch",
+        "type": "INTEGER",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "last_updated",
+        "type": "TIMESTAMP",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "temp_c",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "temp_f",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "is_day",
+        "type": "INTEGER",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "condition",
+        "type": "RECORD",
+        "mode": "NULLABLE",
+        "fields": [
+            {
+                "name": "text",
+                "type": "STRING",
+                "mode": "NULLABLE"
+            },
+            {
+                "name": "icon",
+                "type": "STRING",
+                "mode": "NULLABLE"
+            },
+            {
+                "name": "code",
+                "type": "INTEGER",
+                "mode": "NULLABLE"
+            }
+        ]
+    },
+    {
+        "name": "wind_mph",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "wind_kph",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "wind_degree",
+        "type": "INTEGER",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "wind_dir",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "pressure_mb",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "pressure_in",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "precip_mm",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "precip_in",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "humidity",
+        "type": "INTEGER",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "cloud",
+        "type": "INTEGER",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "feelslike_c",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "feelslike_f",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "windchill_c",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "windchill_f",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "heatindex_c",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "heatindex_f",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "dewpoint_c",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "dewpoint_f",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "vis_km",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "vis_miles",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "uv",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "gust_mph",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "gust_kph",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "short_rad",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "diff_rad",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "dni",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "gti",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    }
+]

@@ -1,0 +1,5 @@
+**.mvn
+**target
+**.vscode
+**.terraform
+**.terraform.lock.hcl

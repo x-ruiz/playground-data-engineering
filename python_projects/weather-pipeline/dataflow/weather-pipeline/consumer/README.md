@@ -1,0 +1,1 @@
+mvn compile exec:java -Dexec.mainClass=com.xavierruiz.app.WeatherConsumer -Dexec.args=--project="unified-gist-464917-r7"
