@@ -2,8 +2,8 @@
 
 ### 1. Refactor Project Structure & Modules
 - [ ] Create Grouping Directory: `iceberg-lakehouse/`
-- [ ] Split into submodules: `iceberg-sdk` and `iceberg-app`
-- [ ] Set `spark-sql` scope to `provided` in `iceberg-sdk/pom.xml`
+- [X] Split into submodules: `sdk-iceberg` and `app-iceberg`
+- [ ] Set `spark-sql` scope to `provided` in `iceberg-lakehouse/pom.xml`
 - [ ] Configure multi-module POM hierarchy
 - [ ] Set up Gemini CLI
 

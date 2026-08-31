@@ -1,54 +1,63 @@
 # Proposed Project Structure
 ```mermaid
 flowchart LR
-    Root["playground-data-engineering/"]
-    RootPOM["pom.xml<br/>(Root Parent POM)"]
+    Root["lakehouse-workspace/"]
 
-%% Grouping Folder
-    ProjectDir["iceberg-lakehouse/<br/>(or project-iceberg/)"]
-    ProjectPOM["pom.xml<br/>(Project Aggregator POM)"]
+%% Main Submodules
+    Core["lakehouse-core/<br/>(Reusable Engine & I/O Library)"]
+    Models["lakehouse-models/<br/>(Table Contracts & DDL/Migrations)"]
+    Pipelines["lakehouse-pipelines/<br/>(Runnable Jobs & Pipelines)"]
 
-    Root --> RootPOM
-    Root --> ProjectDir
-    ProjectDir --> ProjectPOM
+    Root --> Core
+    Root --> Models
+    Root --> Pipelines
 
-%% Submodules
-    SDK["iceberg-sdk/<br/>(Reusable Client Library)"]
-    App["iceberg-app/<br/>(Runnable Entrypoint / Runner)"]
+%% Core Internals
+    CoreSrc["core-internals/"]
+    Core --> CoreSrc
 
-    ProjectDir --> SDK
-    ProjectDir --> App
+    SessionFactory["session/SessionFactory<br/>(Catalog Config & Extension Setup)"]
+    WriterOps["io/WriteOperations<br/>(Upsert / Merge / Append Patterns)"]
+    Maintenance["maintenance/TableOptimizer<br/>(Compaction & Snapshot Expiration)"]
 
-%% SDK Internals
-    SDKPOM["pom.xml<br/>(spark-sql: provided)"]
-    SDKSrc["src/.../iceberg/"]
-    SDK --> SDKPOM
-    SDK --> SDKSrc
+    CoreSrc --> SessionFactory
+    CoreSrc --> WriterOps
+    CoreSrc --> Maintenance
 
-    TableAPI["IcebergTableOperations.java<br/>(Table Interface)"]
-    Config["config/IcebergTableConfig.java<br/>(Config + Builder)"]
-    IceTable["IcebergTable.java<br/>(Table DDL / DML Engine)"]
-    SDKSrc --> TableAPI
-    SDKSrc --> Config
-    SDKSrc --> IceTable
+%% Schema / DDL Internals
+    ModelSrc["model-internals/"]
+    Models --> ModelSrc
 
-%% App Internals
-    AppPOM["pom.xml<br/>(Depends on: iceberg-sdk)"]
-    AppSrc["src/.../app/"]
-    App --> AppPOM
-    App --> AppSrc
+    TableSpecs["definitions/TableSpecs<br/>(Schemas, Partitions & Properties)"]
+    CatalogMgr["catalog/CatalogManager<br/>(Table DDL & Lifecycle Management)"]
+    Migrations["migrations/SchemaEvolution<br/>(Versioned Migrations)"]
 
-    Factory["factory/SparkSessionFactory.java<br/>(Docker / MinIO / REST Connection)"]
-    Main["Main.java<br/>(spark-submit CLI Entrypoint)"]
-    AppSrc --> Factory
-    AppSrc --> Main
+    ModelSrc --> TableSpecs
+    ModelSrc --> CatalogMgr
+    ModelSrc --> Migrations
+
+%% Pipeline Internals
+    PipelineSrc["pipeline-internals/"]
+    Pipelines --> PipelineSrc
+
+    JobLogic["pipelines/DataPipeline<br/>(Transformation & Business Logic)"]
+    JobConfig["config/PipelineConfig<br/>(Job & Environment Settings)"]
+    Runner["runner/JobRunner<br/>(CLI & Execution Entrypoint)"]
+
+    PipelineSrc --> JobLogic
+    PipelineSrc --> JobConfig
+    PipelineSrc --> Runner
+
+%% Dependencies
+    Pipelines -.->|"imports"| Core
+    Pipelines -.->|"imports"| Models
 
 %% Styling
     classDef folder fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1;
-    classDef file fill:#F5F5F5,stroke:#9E9E9E,stroke-width:1px,color:#212121;
+    classDef component fill:#F5F5F5,stroke:#9E9E9E,stroke-width:1px,color:#212121;
 
-    class Root,ProjectDir,SDK,App,SDKSrc,AppSrc folder;
-    class RootPOM,ProjectPOM,SDKPOM,TableAPI,Config,IceTable,AppPOM,Factory,Main file;
+    class Root,Core,Models,Pipelines,CoreSrc,ModelSrc,PipelineSrc folder;
+    class SessionFactory,WriterOps,Maintenance,TableSpecs,CatalogMgr,Migrations,JobLogic,JobConfig,Runner component;
 ```
 # Set Up
 https://iceberg.apache.org/spark-quickstart/
@@ -111,6 +120,9 @@ CREATE TABLE demo.icebergingestion.taxis
   store_and_fwd_flag string
 )
 PARTITIONED BY (vendor_id);
+
+USE demo;
+SHOW TABLES IN default;
 ```
 
 ## Writing data
