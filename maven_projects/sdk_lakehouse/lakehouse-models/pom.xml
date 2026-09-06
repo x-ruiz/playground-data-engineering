@@ -14,10 +14,6 @@
   <name>Lakehouse Models</name>
 
   <dependencies>
-    <dependency>
-      <groupId>org.apache.iceberg</groupId>
-      <artifactId>iceberg-core</artifactId>
-    </dependency>
     <!-- Log4j API Facade -->
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>

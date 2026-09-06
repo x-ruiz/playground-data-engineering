@@ -36,5 +36,5 @@
         <version>${iceberg.version}</version>
       </dependency>
     </dependencies>
-  </dependencyManagement>
+</dependencyManagement>
 </project>

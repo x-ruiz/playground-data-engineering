@@ -1,15 +1,17 @@
-package x.ruiz.playground.data.engineering.lakehouse.models.catalog;
+package x.ruiz.playground.data.engineering.lakehouse.core.session;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.spark.sql.SparkSession;
-import x.ruiz.playground.data.engineering.lakehouse.models.catalog.IcebergTable;
+import x.ruiz.playground.data.engineering.lakehouse.models.IcebergTable;
+import x.ruiz.playground.data.engineering.lakehouse.models.Table;
 
-class DefaultIcebergTable implements IcebergTable {
+public class IcebergTableManager implements TableManager {
     private static final Logger logger = LogManager.getLogger();
+
     private final SparkSession spark;
 
-    DefaultIcebergTable() {
+    public IcebergTableManager() {
         this.spark = SparkSession.builder()
                 .appName("Iceberg Table Create")
                 .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
@@ -29,9 +31,9 @@ class DefaultIcebergTable implements IcebergTable {
 
     @Override
     @SuppressWarnings("SqlSourceToSinkFlow")
-    void create(String namespace, String name, String schema) {
-        logger.info("Creating Table with namespace: {}, name: {}, schema: {}", namespace, name, schema);
-        spark.sql(String.format("CREATE DATABASE IF NOT EXISTS demo.%s", namespace));
+    public void create(Table table) {
+        logger.info("Creating Table with namespace: {}, name: {}, schema: {}", table.namespace(), table.name(), table.schema());
+        spark.sql(String.format("CREATE NAMESPACE IF NOT EXISTS demo.%s", table.namespace()));
         spark.sql(String.format("""
                 CREATE TABLE IF NOT EXISTS demo.%s.%s (
                     id BIGINT,
@@ -39,13 +41,13 @@ class DefaultIcebergTable implements IcebergTable {
                     ts TIMESTAMP
                 )
                 USING iceberg
-                """, namespace, name));
+                """, table.namespace(), table.name()));
 
         logger.info("Table Created");
     }
 
     @Override
-    void drop() {
+    public void drop() {
 
     }
 }

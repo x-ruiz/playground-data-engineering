@@ -2,6 +2,7 @@ services:
   spark-iceberg:
     image: tabulario/spark-iceberg
     container_name: spark-iceberg
+    hostname: spark-iceberg
     build: spark/
     networks:
       iceberg_net:

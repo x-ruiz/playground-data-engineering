@@ -1,15 +1,65 @@
-package x.ruiz.playground.data.engineering.lakehouse.models.catalog;
+package x.ruiz.playground.data.engineering.lakehouse.models;
 
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.catalog.Catalog;
-import x.ruiz.playground.data.engineering.lakehouse.models.internal.DefaultIcebergTable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-public interface IcebergTable {
-    void create(String namespace, String name, String schema);
+import java.util.Objects;
 
-    void drop();
+public class IcebergTable implements Table {
+    private static final Logger logger = LogManager.getLogger();
 
-    static IcebergTable createDefault(String tableName) {
-        return new DefaultIcebergTable();
+    private final String name;
+    private final String namespace;
+    private final String schema;
+
+    private IcebergTable(Builder builder){
+        name = builder.name;
+        namespace = builder.namespace;
+        schema = builder.schema;
+    }
+
+    public static Builder builder(String name) {
+        return new Builder(name);
+    }
+
+    public static class Builder {
+        private final String name;
+        private String namespace;
+        private String schema;
+
+        public Builder(String name) {
+            this.name = name;
+        }
+
+        public Builder namespace(String namespace) {
+            this.namespace = namespace;
+            return this;
+        }
+
+        public Builder schema(String schema) {
+            this.schema = schema;
+            return this;
+        }
+
+        public Table build() {
+            Objects.requireNonNull(this.namespace, "namespace is required");
+            Objects.requireNonNull(this.schema, "schema is required");
+            return new IcebergTable(this);
+        }
+    }
+
+    @Override
+    public String name() {
+        return name;
+    }
+
+    @Override
+    public String namespace() {
+        return namespace;
+    }
+
+    @Override
+    public String schema() {
+        return schema;
     }
 }
