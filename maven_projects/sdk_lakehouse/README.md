@@ -1,100 +1,94 @@
-# Proposed Project Structure
-```mermaid
-flowchart LR
-    Root["lakehouse-workspace/"]
+# Lakehouse SDK (`sdk.lakehouse`)
 
-%% Main Submodules
-    Core["lakehouse-core/<br/>(Reusable Engine & I/O Library)"]
-    Models["lakehouse-models/<br/>(Table Contracts & DDL/Migrations)"]
-    Pipelines["lakehouse-pipelines/<br/>(Runnable Jobs & Pipelines)"]
+A modular Java SDK and execution framework for managing Apache Iceberg open-source table formats, schemas, and lifecycle operations across distributed compute engines (Apache Spark) and REST catalogs backed by S3/MinIO object storage.
 
-    Root --> Core
-    Root --> Models
-    Root --> Pipelines
+---
 
-%% Core Internals
-    CoreSrc["core-internals/"]
-    Core --> CoreSrc
+## Architecture & Project Structure
 
-    SessionFactory["session/SessionFactory<br/>(Catalog Config & Extension Setup)"]
-    WriterOps["io/WriteOperations<br/>(Upsert / Merge / Append Patterns)"]
-    Maintenance["maintenance/TableOptimizer<br/>(Compaction & Snapshot Expiration)"]
+The project is structured as a Maven multi-module architecture adhering to clean separation of concerns between declarative domain models and compute execution.
 
-    CoreSrc --> SessionFactory
-    CoreSrc --> WriterOps
-    CoreSrc --> Maintenance
-
-%% Schema / DDL Internals
-    ModelSrc["model-internals/"]
-    Models --> ModelSrc
-
-    TableSpecs["definitions/TableSpecs<br/>(Schemas, Partitions & Properties)"]
-    CatalogMgr["catalog/CatalogManager<br/>(Table DDL & Lifecycle Management)"]
-    Migrations["migrations/SchemaEvolution<br/>(Versioned Migrations)"]
-
-    ModelSrc --> TableSpecs
-    ModelSrc --> CatalogMgr
-    ModelSrc --> Migrations
-
-%% Pipeline Internals
-    PipelineSrc["pipeline-internals/"]
-    Pipelines --> PipelineSrc
-
-    JobLogic["pipelines/DataPipeline<br/>(Transformation & Business Logic)"]
-    JobConfig["config/PipelineConfig<br/>(Job & Environment Settings)"]
-    Runner["runner/JobRunner<br/>(CLI & Execution Entrypoint)"]
-
-    PipelineSrc --> JobLogic
-    PipelineSrc --> JobConfig
-    PipelineSrc --> Runner
-
-%% Dependencies
-    Pipelines -.->|"imports"| Core
-    Pipelines -.->|"imports"| Models
-
-%% Styling
-    classDef folder fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1;
-    classDef component fill:#F5F5F5,stroke:#9E9E9E,stroke-width:1px,color:#212121;
-
-    class Root,Core,Models,Pipelines,CoreSrc,ModelSrc,PipelineSrc folder;
-    class SessionFactory,WriterOps,Maintenance,TableSpecs,CatalogMgr,Migrations,JobLogic,JobConfig,Runner component;
-```
-# Set Up
-https://iceberg.apache.org/spark-quickstart/
-
-`docker-compose up` -> sets up spark, iceberg rest catalog, and minio (storage) \
-`docker exec -it spark-iceberg spark-sql`
-
-This sets up a Iceberg REST catalog in spark called demo.
-
-The docker-compose creates the below setup:
 ```mermaid
 flowchart TD
-    subgraph DockerNetwork[Docker Network]
+    subgraph Root["sdk.lakehouse (Parent Aggregator)"]
+        
+        subgraph ModelsModule["lakehouse-models (Domain Contracts & Models)"]
+            TableIntf["Table<br/>(Core Contract Interface)"]
+            IcebergTableCls["IcebergTable & IcebergTable.Builder<br/>(Immutable Table Descriptor & Fluent Builder)"]
+            CatalogTypeEnum["CatalogType<br/>(REST, GLUE, JDBC, HIVE, NESSIE, HADOOP)"]
+            InvalidTableEx["InvalidTableException<br/>(Domain Validation Exception)"]
+            
+            IcebergTableCls -.->|"implements"| TableIntf
+        end
+
+        subgraph CoreModule["lakehouse-core (Execution Engine & Shaded Fat JAR)"]
+            MainApp["Main<br/>(CLI & Job Entrypoint)"]
+            TableMgrIntf["session/TableManager<br/>(DDL & Table Lifecycle Contract)"]
+            IcebergTableMgr["session/IcebergTableManager<br/>(Spark Session & REST/S3 Execution)"]
+            
+            IO["io/<br/>(Write / Upsert / Append)"]
+            Maintenance["maintenance/<br/>(Compaction & Snapshot Expiry)"]
+            
+            MainApp -->|"creates model via Builder"| IcebergTableCls
+            MainApp -->|"invokes"| TableMgrIntf
+            IcebergTableMgr -.->|"implements"| TableMgrIntf
+            IcebergTableMgr -->|"accepts"| TableIntf
+        end
+
+    end
+
+    CoreModule -.->|"depends on"| ModelsModule
+    IcebergTableMgr -->|"executes DDL / queries"| SparkEngine["Spark Engine & REST Catalog"]
+
+    classDef module fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1;
+    classDef contract fill:#EDE7F6,stroke:#5E35B1,stroke-width:1.5px,color:#311B92;
+    classDef concrete fill:#F5F5F5,stroke:#757575,stroke-width:1px,color:#212121;
+    classDef ext fill:#FFF3E0,stroke:#FB8C00,stroke-width:1.5px,color:#E65100;
+
+    class ModelsModule,CoreModule module;
+    class TableIntf,TableMgrIntf contract;
+    class IcebergTableCls,IcebergTableMgr,MainApp,CatalogTypeEnum,InvalidTableEx concrete;
+    class SparkEngine,IO,Maintenance ext;
+```
+
+### Module Responsibilities
+
+| Module | Purpose | Key Components |
+| :--- | :--- | :--- |
+| **`lakehouse-models`** | Pure, engine-agnostic domain contracts, metadata descriptors, and builders. | [`Table`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/models/Table.java), [`IcebergTable`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/models/IcebergTable.java) (`Builder`), [`CatalogType`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/models/CatalogType.java), [`InvalidTableException`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/models/InvalidTableException.java) |
+| **`lakehouse-core`** | Compute execution, catalog connection management, Spark session initialization, and deployment packaging. | [`Main`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/Main.java), [`TableManager`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/session/TableManager.java), [`IcebergTableManager`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/session/IcebergTableManager.java) |
+
+---
+
+## Infrastructure Topology
+
+The local development environment runs via `docker-compose` combining Apache Spark, the Apache Iceberg REST Catalog fixture, and MinIO S3 storage.
+
+```mermaid
+flowchart TD
+    subgraph DockerNetwork["Docker Network (iceberg_net)"]
         %% Compute Layer
-        subgraph ComputeLayer[Compute Layer]
-            Spark[tabulario/spark-iceberg<br/>• Spark Master & Worker<br/>• Iceberg Runtime<br/>• Spark SQL Engine]
+        subgraph ComputeLayer["Compute Layer"]
+            Spark["spark-iceberg (tabulario/spark-iceberg)<br/>• Spark Master & Worker (Port 7077, 8080)<br/>• Iceberg Runtime<br/>• Spark SQL Engine"]
         end
 
         %% Catalog & Storage Layer
-        subgraph DataLayer[Catalog & Storage Layer]
-            Catalog[apache/iceberg-rest-fixture<br/>REST Catalog - Port 8181<br/>• ACID Commits<br/>• Table Metadata Pointers<br/>• Namespace Registry]
-            
-            Storage[minio/minio<br/>S3 Object Storage - Port 9000/9001<br/>• Data Files .parquet<br/>• Manifest Lists .avro<br/>• Metadata JSON .metadata.json]
+        subgraph DataLayer["Catalog & Storage Layer"]
+            Catalog["iceberg-rest (apache/iceberg-rest-fixture)<br/>• REST Catalog - Port 8181<br/>• ACID Commits & Namespace Registry"]
+            Storage["minio (minio/minio)<br/>• S3 Object Storage - Port 9000/9001<br/>• Warehouse Bucket: s3://warehouse/"]
         end
 
         %% Init Layer
-        subgraph InitLayer[Bootstrap / Setup]
-            MC[minio/mc<br/>MinIO Client CLI<br/>• Auto-creates warehouse bucket<br/>• Configures access policies]
+        subgraph InitLayer["Bootstrap / Setup"]
+            MC["mc (minio/mc)<br/>• Auto-provisions 'warehouse' bucket<br/>• Configures public access policies"]
         end
 
-        %% Flow & Interactions (Quotes resolve the parenthesis parse error)
-        Spark -->|"1. Fetch / Commit Metadata (REST API)"| Catalog
-        Spark -->|"2. Read / Write Data & Manifests (S3FileIO)"| Storage
-        MC -.->|"Creates bucket & initializes"| Storage
+        %% Interactions
+        Spark -->|"1. Commit / Fetch Table Metadata (REST API)"| Catalog
+        Spark -->|"2. Read / Write Data Files & Manifests (S3FileIO)"| Storage
+        MC -.->|"Initializes bucket"| Storage
     end
 
-    %% Styles
     classDef compute fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1;
     classDef catalog fill:#EDE7F6,stroke:#5E35B1,stroke-width:2px,color:#311B92;
     classDef storage fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:#1B5E20;
@@ -106,27 +100,75 @@ flowchart TD
     class MC init;
 ```
 
-## Creating a database
-`CREATE DATABASE IF NOT EXISTS demo.icebergingestion;`
+---
 
-## Creating a table
-```sparksql
-CREATE TABLE demo.icebergingestion.taxis
-(
-  vendor_id bigint,
-  trip_id bigint,
-  trip_distance float,
-  fare_amount double,
-  store_and_fwd_flag string
-)
-PARTITIONED BY (vendor_id);
+## Quick Start & Setup
 
+### 1. Start the Docker Environment
+```bash
+docker-compose up -d
+```
+This boots up:
+- **Iceberg REST Catalog**: `http://localhost:8181`
+- **MinIO S3 Storage**: `http://localhost:9000` (Console at `http://localhost:9001` with `admin`/`password`)
+- **Spark Master UI**: `http://localhost:8080`
+
+### 2. Build and Deploy the Application
+Compile the multi-module project and submit the job using the [`Makefile`](Makefile):
+
+```bash
+make deploy
+```
+
+> [!TIP]
+> The Makefile automatically packages `lakehouse-core` with the shaded `maven-shade-plugin`, copies the uber JAR to the container, and executes `spark-submit` against the Spark Master.
+
+To deploy with custom parameters or master URL:
+```bash
+make deploy SPARK_MASTER=spark://spark-iceberg:7077
+```
+
+### 3. Interactive Spark SQL Shell
+Launch a Spark SQL session directly against the Iceberg catalog:
+
+```bash
+make spark-sql
+```
+
+---
+
+## Spark SQL Examples
+
+### Inspect Namespaces and Tables
+```sql
 USE demo;
+SHOW NAMESPACES;
 SHOW TABLES IN default;
 ```
 
-## Writing data
-```sparksql
+### Create a Partitioned Iceberg Table
+```sql
+CREATE TABLE IF NOT EXISTS demo.icebergingestion.taxis (
+    vendor_id BIGINT,
+    trip_id BIGINT,
+    trip_distance FLOAT,
+    fare_amount DOUBLE,
+    store_and_fwd_flag STRING
+)
+USING iceberg
+PARTITIONED BY (vendor_id);
+```
+
+### Insert and Query Records
+```sql
 INSERT INTO demo.icebergingestion.taxis
-VALUES (1, 1000371, 1.8, 15.32, 'N'), (2, 1000372, 2.5, 22.15, 'N'), (2, 1000373, 0.9, 9.01, 'N'), (1, 1000374, 8.4, 42.13, 'Y');
+VALUES 
+    (1, 1000371, 1.8, 15.32, 'N'),
+    (2, 1000372, 2.5, 22.15, 'N'),
+    (2, 1000373, 0.9, 9.01, 'N'),
+    (1, 1000374, 8.4, 42.13, 'Y');
+
+SELECT vendor_id, count(*), avg(fare_amount) 
+FROM demo.icebergingestion.taxis 
+GROUP BY vendor_id;
 ```
