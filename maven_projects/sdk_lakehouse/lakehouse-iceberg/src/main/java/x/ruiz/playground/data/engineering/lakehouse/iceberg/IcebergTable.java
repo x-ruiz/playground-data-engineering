@@ -1,7 +1,8 @@
-package x.ruiz.playground.data.engineering.lakehouse.models;
+package x.ruiz.playground.data.engineering.lakehouse.iceberg;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import x.ruiz.playground.data.engineering.lakehouse.core.Table;
 
 import java.util.Objects;
 
@@ -27,7 +28,7 @@ public class IcebergTable implements Table {
         private String namespace;
         private String schema;
 
-        public Builder(String name) {
+        private Builder(String name) {
             this.name = name;
         }
 

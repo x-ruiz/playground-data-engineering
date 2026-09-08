@@ -1,4 +1,4 @@
-package x.ruiz.playground.data.engineering.lakehouse.models;
+package x.ruiz.playground.data.engineering.lakehouse.core;
 
 public interface Table {
     String name();

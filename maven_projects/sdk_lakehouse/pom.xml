@@ -15,7 +15,7 @@
   <name>Open Source Tables</name>
 
   <modules>
-    <module>lakehouse-models</module>
+    <module>lakehouse-iceberg</module>
     <module>lakehouse-core</module>
   </modules>
 
@@ -29,7 +29,7 @@
     <dependencies>
       <dependency>
         <groupId>x.ruiz.playground.data.engineering</groupId>
-        <artifactId>lakehouse-models</artifactId>
+        <artifactId>lakehouse-iceberg</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

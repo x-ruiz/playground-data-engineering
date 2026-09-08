@@ -2,6 +2,17 @@
 
 A modular Java SDK and execution framework for managing Apache Iceberg open-source table formats, schemas, and lifecycle operations across distributed compute engines (Apache Spark) and REST catalogs backed by S3/MinIO object storage.
 
+| Conceptual Feature | Apache Iceberg | Delta Lake | Apache Hudi |
+| :--- | :--- | :--- | :--- |
+| **Point in Time** | Snapshot | Version | Commit / Instant |
+| **Active Metadata Root** | `metadata.json` | `_delta_log/000...json` | `.hoodie/timeline` |
+| **File Listing Manifest** | Manifest List + Manifests | Checkpoint Parquet files | Timeline metadata |
+| **Compaction Command** | `rewrite_data_files` | `OPTIMIZE` | Compaction / Clustering |
+| **Cleanup Command** | `expire_snapshots` + `remove_orphan_files` | `VACUUM` | Cleaner |
+| **Row-Level Deletes** | Position & Equality Deletes | Deletion Vectors | Merge-on-Read (Delta Log) |
+| **Default Catalog** | REST Catalog / Glue / Hive | Unity Catalog / Path-based | Hive Metastore / Glue |
+| **Primary File Format** | Parquet (or ORC, Avro) | Parquet | Parquet (or HFile, ORC) |
+
 ---
 
 ## Architecture & Project Structure
@@ -55,7 +66,7 @@ flowchart TD
 
 | Module | Purpose | Key Components |
 | :--- | :--- | :--- |
-| **`lakehouse-models`** | Pure, engine-agnostic domain contracts, metadata descriptors, and builders. | [`Table`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/models/Table.java), [`IcebergTable`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/models/IcebergTable.java) (`Builder`), [`CatalogType`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/models/CatalogType.java), [`InvalidTableException`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/models/InvalidTableException.java) |
+| **`lakehouse-models`** | Pure, engine-agnostic domain contracts, metadata descriptors, and builders. | [`Table`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/Table.java), [`IcebergTable`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/IcebergTable.java) (`Builder`), [`CatalogType`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/CatalogType.java), [`InvalidTableException`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/InvalidTableException.java) |
 | **`lakehouse-core`** | Compute execution, catalog connection management, Spark session initialization, and deployment packaging. | [`Main`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/Main.java), [`TableManager`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/session/TableManager.java), [`IcebergTableManager`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/session/IcebergTableManager.java) |
 
 ---
