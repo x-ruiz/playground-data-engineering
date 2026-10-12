@@ -23,51 +23,60 @@ The project is structured as a Maven multi-module architecture adhering to clean
 flowchart TD
     subgraph Root["sdk.lakehouse (Parent Aggregator)"]
         
-        subgraph ModelsModule["lakehouse-models (Domain Contracts & Models)"]
-            TableIntf["Table<br/>(Core Contract Interface)"]
-            IcebergTableCls["IcebergTable & IcebergTable.Builder<br/>(Immutable Table Descriptor & Fluent Builder)"]
-            CatalogTypeEnum["CatalogType<br/>(REST, GLUE, JDBC, HIVE, NESSIE, HADOOP)"]
-            InvalidTableEx["InvalidTableException<br/>(Domain Validation Exception)"]
-            
-            IcebergTableCls -.->|"implements"| TableIntf
+        subgraph CoreModule["lakehouse-core (Domain Contracts & Models)"]
+            TableIntf["Table & TableSpec<br/>(Core Contracts & Fluent Builder)"]
+            TableMgrIntf["TableManager<br/>(DDL & Full Lifecycle Contract)"]
+            CatalogIntf["Catalog<br/>(Catalog Contract)"]
+            WorkloadEnum["WorkloadMode<br/>(BATCH, STREAMING, HYBRID)"]
         end
 
-        subgraph CoreModule["lakehouse-core (Execution Engine & Shaded Fat JAR)"]
+        subgraph IcebergModule["lakehouse-iceberg (Iceberg Implementations & Runtime)"]
             MainApp["Main<br/>(CLI & Job Entrypoint)"]
-            TableMgrIntf["session/TableManager<br/>(DDL & Table Lifecycle Contract)"]
-            IcebergTableMgr["session/IcebergTableManager<br/>(Spark Session & REST/S3 Execution)"]
+            NativeMgr["IcebergNativeTableManager<br/>(Pure-Java REST/S3 Execution - No Spark)"]
+            SparkMgr["SparkIcebergTableManager<br/>(Spark SQL & Catalog Execution)"]
+            IcebergTableCls["IcebergTable<br/>(Immutable Table Descriptor & Builder)"]
+            IcebergCatCls["IcebergCatalog<br/>(REST, Glue, JDBC, Hadoop Descriptor)"]
+            FactoryCls["IcebergLakehouseFactory<br/>(Manager & Session Factory)"]
             
-            IO["io/<br/>(Write / Upsert / Append)"]
-            Maintenance["maintenance/<br/>(Compaction & Snapshot Expiry)"]
+            NativeMgr -.->|"implements"| TableMgrIntf
+            SparkMgr -.->|"implements"| TableMgrIntf
+            IcebergTableCls -.->|"implements"| TableIntf
+            IcebergCatCls -.->|"implements"| CatalogIntf
+        end
+
+        subgraph ProtoModule["lakehouse-schema-protobuf (Protobuf Schema Add-on)"]
+            ProtoConverter["ProtoToIcebergSchemaConverter<br/>(Descriptor to Iceberg Schema)"]
+            ProtoParser["ProtoTableSpecParser<br/>(Batch & Streaming TableSpec Parser)"]
+            ProtoOptions["iceberg_options.proto<br/>(Partition & Table Option Extensions)"]
             
-            MainApp -->|"creates model via Builder"| IcebergTableCls
-            MainApp -->|"invokes"| TableMgrIntf
-            IcebergTableMgr -.->|"implements"| TableMgrIntf
-            IcebergTableMgr -->|"accepts"| TableIntf
+            ProtoParser -->|"generates"| TableIntf
         end
 
     end
 
-    CoreModule -.->|"depends on"| ModelsModule
-    IcebergTableMgr -->|"executes DDL / queries"| SparkEngine["Spark Engine & REST Catalog"]
+    IcebergModule -.->|"depends on"| CoreModule
+    ProtoModule -.->|"depends on"| CoreModule
+    NativeMgr -->|"REST API / HTTP"| CatalogFixture["Iceberg REST Catalog (Port 8181)"]
+    SparkMgr -->|"Spark SQL"| SparkEngine["Spark Engine & REST Catalog"]
 
     classDef module fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1;
     classDef contract fill:#EDE7F6,stroke:#5E35B1,stroke-width:1.5px,color:#311B92;
     classDef concrete fill:#F5F5F5,stroke:#757575,stroke-width:1px,color:#212121;
     classDef ext fill:#FFF3E0,stroke:#FB8C00,stroke-width:1.5px,color:#E65100;
 
-    class ModelsModule,CoreModule module;
-    class TableIntf,TableMgrIntf contract;
-    class IcebergTableCls,IcebergTableMgr,MainApp,CatalogTypeEnum,InvalidTableEx concrete;
-    class SparkEngine,IO,Maintenance ext;
+    class CoreModule,IcebergModule,ProtoModule module;
+    class TableIntf,TableMgrIntf,CatalogIntf,WorkloadEnum contract;
+    class NativeMgr,SparkMgr,IcebergTableCls,IcebergCatCls,FactoryCls,MainApp,ProtoConverter,ProtoParser,ProtoOptions concrete;
+    class SparkEngine,CatalogFixture ext;
 ```
 
 ### Module Responsibilities
 
-| Module | Purpose | Key Components |
+| Module | Scope & Responsibility | Key Components |
 | :--- | :--- | :--- |
-| **`lakehouse-models`** | Pure, engine-agnostic domain contracts, metadata descriptors, and builders. | [`Table`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/Table.java), [`IcebergTable`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/IcebergTable.java) (`Builder`), [`CatalogType`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/CatalogType.java), [`InvalidTableException`](lakehouse-models/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/InvalidTableException.java) |
-| **`lakehouse-core`** | Compute execution, catalog connection management, Spark session initialization, and deployment packaging. | [`Main`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/Main.java), [`TableManager`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/session/TableManager.java), [`IcebergTableManager`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/session/IcebergTableManager.java) |
+| **`lakehouse-core`** | Pure, engine-agnostic domain contracts, metadata descriptors, and builders. | [`Table`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/Table.java), [`TableSpec`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/TableSpec.java), [`TableManager`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/TableManager.java), [`Catalog`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/Catalog.java), [`WorkloadMode`](lakehouse-core/src/main/java/x/ruiz/playground/data/engineering/lakehouse/core/WorkloadMode.java) |
+| **`lakehouse-iceberg`** | Pure-Java native REST catalog manager (`IcebergNativeTableManager`), Spark SQL execution adapter (`SparkIcebergTableManager`), schema parser, and shaded deployment JAR. | [`IcebergNativeTableManager`](lakehouse-iceberg/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/IcebergNativeTableManager.java), [`SparkIcebergTableManager`](lakehouse-iceberg/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/SparkIcebergTableManager.java), [`IcebergCatalog`](lakehouse-iceberg/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/IcebergCatalog.java), [`IcebergTable`](lakehouse-iceberg/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/IcebergTable.java), [`IcebergLakehouseFactory`](lakehouse-iceberg/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/IcebergLakehouseFactory.java), [`Main`](lakehouse-iceberg/src/main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/Main.java) |
+| **`lakehouse-schema-protobuf`** | Protobuf schema converter, tag-to-field-ID mapper, and batch/streaming table spec generator. | [`ProtoToIcebergSchemaConverter`](lakehouse-schema-protobuf/src/main/java/x/ruiz/playground/data/engineering/lakehouse/protobuf/ProtoToIcebergSchemaConverter.java), [`ProtoTableSpecParser`](lakehouse-schema-protobuf/src/main/java/x/ruiz/playground/data/engineering/lakehouse/protobuf/ProtoTableSpecParser.java) |
 
 ---
 

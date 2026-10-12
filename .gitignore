@@ -1,4 +1,7 @@
 ### Overall ignored files
+.idea/
+**/.idea/
+*.iml
 **.venv
 **target
 **.mvn

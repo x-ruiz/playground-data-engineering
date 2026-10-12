@@ -17,6 +17,7 @@
   <modules>
     <module>lakehouse-iceberg</module>
     <module>lakehouse-core</module>
+    <module>lakehouse-schema-protobuf</module>
   </modules>
 
   <properties>
@@ -36,6 +37,38 @@
         <groupId>x.ruiz.playground.data.engineering</groupId>
         <artifactId>lakehouse-core</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>x.ruiz.playground.data.engineering</groupId>
+        <artifactId>lakehouse-schema-protobuf</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-api</artifactId>
+        <version>${iceberg.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-aws</artifactId>
+        <version>${iceberg.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-aws-bundle</artifactId>
+        <version>${iceberg.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>5.10.2</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
+        <version>3.25.3</version>
+        <scope>test</scope>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -60,8 +93,7 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
-          <source>${java.version}</source>
-          <target>${java.version}</target>
+          <release>${java.version}</release>
         </configuration>
       </plugin>
     </plugins>
