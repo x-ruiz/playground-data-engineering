@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package x.ruiz.lakehouse.iceberg.options;
+
+import "google/protobuf/descriptor.proto";
+
+option java_package = "x.ruiz.playground.data.engineering.lakehouse.protobuf.options";
+option java_outer_classname = "IcebergOptionsProto";
+
+enum PartitionTransform {
+  IDENTITY = 0;
+  YEAR = 1;
+  MONTH = 2;
+  DAY = 3;
+  HOUR = 4;
+  BUCKET = 5;
+  TRUNCATE = 6;
+}
+
+enum SortDirection {
+  ASCENDING = 0;
+  DESCENDING = 1;
+}
+
+enum NullOrder {
+  NULLS_FIRST = 0;
+  NULLS_LAST = 1;
+}
+
+message FieldOptions {
+  bool required = 1;
+  string doc = 2;
+  PartitionTransform partition_transform = 3;
+  int32 partition_width = 4;
+  bool sort_field = 5;
+  SortDirection sort_direction = 6;
+  NullOrder null_order = 7;
+  bool primary_key = 8;
+}
+
+message TableProperties {
+  int32 format_version = 1;
+  string write_format = 2;
+  int64 target_file_size_bytes = 3;
+  string write_distribution_mode = 4;
+  int64 commit_interval_ms = 5;
+}
+
+message TableOptions {
+  string default_namespace = 1;
+  string table_name = 2;
+  TableProperties properties = 3;
+}
+
+extend google.protobuf.FieldOptions {
+  FieldOptions field = 50001;
+}
+
+extend google.protobuf.MessageOptions {
+  TableOptions table = 50002;
+}
