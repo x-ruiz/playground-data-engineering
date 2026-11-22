@@ -11,4 +11,4 @@ columns:
   - name: amount
     type: DECIMAL
     nullable: true
-partitionsColumn: date
+partitionColumn: date

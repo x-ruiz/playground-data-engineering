@@ -1,6 +1,6 @@
 package x.ruiz.playground.data.engineering.lakehouse.core;
 
-import org.apache.spark.sql.catalyst.plans.logical.TableSpec;
+import x.ruiz.playground.data.engineering.lakehouse.core.TableSpec;
 
 public interface TableParser {
     public TableSpec parseData();
