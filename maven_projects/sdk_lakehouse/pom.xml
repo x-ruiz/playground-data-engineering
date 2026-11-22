@@ -15,9 +15,8 @@
   <name>Open Source Tables</name>
 
   <modules>
-    <module>lakehouse-iceberg</module>
     <module>lakehouse-core</module>
-    <module>lakehouse-schema-protobuf</module>
+    <module>lakehouse-iceberg</module>
   </modules>
 
   <properties>
@@ -36,11 +35,6 @@
       <dependency>
         <groupId>x.ruiz.playground.data.engineering</groupId>
         <artifactId>lakehouse-core</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>x.ruiz.playground.data.engineering</groupId>
-        <artifactId>lakehouse-schema-protobuf</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

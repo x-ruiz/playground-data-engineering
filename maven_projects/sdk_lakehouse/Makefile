@@ -14,4 +14,3 @@ deploy:
 spark-sql:
 	docker exec -it spark-iceberg spark-sql \
 		--master $(SPARK_MASTER)
-
