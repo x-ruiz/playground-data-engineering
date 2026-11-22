@@ -15,9 +15,8 @@
   <name>Open Source Tables</name>
 
   <modules>
-    <module>lakehouse-iceberg</module>
     <module>lakehouse-core</module>
-    <module>lakehouse-schema-protobuf</module>
+    <module>lakehouse-iceberg</module>
   </modules>
 
   <properties>
@@ -39,11 +38,6 @@
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>x.ruiz.playground.data.engineering</groupId>
-        <artifactId>lakehouse-schema-protobuf</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
         <groupId>org.apache.iceberg</groupId>
         <artifactId>iceberg-api</artifactId>
         <version>${iceberg.version}</version>
@@ -57,6 +51,13 @@
         <groupId>org.apache.iceberg</groupId>
         <artifactId>iceberg-aws-bundle</artifactId>
         <version>${iceberg.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>2.18.2</version>
+        <type>pom</type>
+        <scope>import</scope>
       </dependency>
       <dependency>
         <groupId>org.junit.jupiter</groupId>
