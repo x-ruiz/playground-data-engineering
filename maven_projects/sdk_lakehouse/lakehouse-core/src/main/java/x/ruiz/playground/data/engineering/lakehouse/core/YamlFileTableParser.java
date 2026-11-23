@@ -8,13 +8,11 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 
-public class YamlTableParser implements TableParser {
-    private static final Logger logger = LogManager.getLogger(YamlTableParser.class);
-
+public class YamlFileTableParser implements FileTableParser {
+    private static final Logger logger = LogManager.getLogger(YamlFileTableParser.class);
     YAMLMapper mapper = new YAMLMapper();
 
-    public TableSpec parseData() {
-        String path = "/Users/xavierruiz/Library/Mobile Documents/com~apple~CloudDocs/Documents/repositories/x-ruiz/playground-data-engineering/maven_projects/sdk_lakehouse/lakehouse-core/src/test/resources/table.yaml";
+    public TableSpec parseData(String path) {
         logger.info("Processing data for path: {}", path);
         try {
             return mapper.readValue(new File(path), TableSpec.class);
