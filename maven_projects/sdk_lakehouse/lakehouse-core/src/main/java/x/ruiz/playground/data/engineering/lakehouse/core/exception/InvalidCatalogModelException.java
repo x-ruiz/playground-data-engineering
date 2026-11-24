@@ -1,17 +1,17 @@
 package x.ruiz.playground.data.engineering.lakehouse.core.exception;
 
 /**
- * Thrown when a {@link x.ruiz.playground.data.engineering.lakehouse.core.spec.CatalogSpec}
+ * Thrown when a {@link x.ruiz.playground.data.engineering.lakehouse.core.model.CatalogModel}
  * fails validation (for example, a null, blank, or malformed catalog name).
  */
-public class InvalidCatalogSpecException extends LakehouseException {
+public class InvalidCatalogModelException extends LakehouseException {
 
     /**
      * Creates a new exception with the specified detail message.
      *
      * @param message descriptive validation error message
      */
-    public InvalidCatalogSpecException(String message) {
+    public InvalidCatalogModelException(String message) {
         super(message);
     }
 
@@ -21,7 +21,7 @@ public class InvalidCatalogSpecException extends LakehouseException {
      * @param message descriptive validation error message
      * @param cause   original failure cause
      */
-    public InvalidCatalogSpecException(String message, Throwable cause) {
+    public InvalidCatalogModelException(String message, Throwable cause) {
         super(message, cause);
     }
 }

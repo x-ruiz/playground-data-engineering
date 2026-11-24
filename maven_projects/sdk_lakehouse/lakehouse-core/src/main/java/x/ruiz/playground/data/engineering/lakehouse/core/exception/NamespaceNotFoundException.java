@@ -1,6 +1,6 @@
 package x.ruiz.playground.data.engineering.lakehouse.core.exception;
 
-import x.ruiz.playground.data.engineering.lakehouse.core.spec.NamespaceSpec;
+import x.ruiz.playground.data.engineering.lakehouse.core.model.NamespaceModel;
 
 /**
  * Thrown when a table operation targets a namespace that does not exist within an existing catalog.
@@ -10,17 +10,17 @@ import x.ruiz.playground.data.engineering.lakehouse.core.spec.NamespaceSpec;
 public class NamespaceNotFoundException extends LakehouseException {
 
     /** Specification of the missing namespace. */
-    private final NamespaceSpec namespaceSpec;
+    private final NamespaceModel namespaceModel;
 
     /**
      * Creates a new exception for the missing namespace.
      *
      * @param namespace non-null specification of the missing namespace
-     * @throws InvalidNamespaceSpecException if {@code namespace} is null
+     * @throws InvalidNamespaceModelException if {@code namespace} is null
      */
-    public NamespaceNotFoundException(NamespaceSpec namespace) {
+    public NamespaceNotFoundException(NamespaceModel namespace) {
         super(formatMessage(namespace));
-        this.namespaceSpec = namespace;
+        this.namespaceModel = namespace;
     }
 
     /**
@@ -28,27 +28,27 @@ public class NamespaceNotFoundException extends LakehouseException {
      *
      * @param namespace non-null specification of the missing namespace
      * @param cause     underlying engine or client exception
-     * @throws InvalidNamespaceSpecException if {@code namespace} is null
+     * @throws InvalidNamespaceModelException if {@code namespace} is null
      */
-    public NamespaceNotFoundException(NamespaceSpec namespace, Throwable cause) {
+    public NamespaceNotFoundException(NamespaceModel namespace, Throwable cause) {
         super(formatMessage(namespace), cause);
-        this.namespaceSpec = namespace;
+        this.namespaceModel = namespace;
     }
 
-    private static String formatMessage(NamespaceSpec namespace) {
+    private static String formatMessage(NamespaceModel namespace) {
         if (namespace == null) {
-            throw new InvalidNamespaceSpecException("Namespace spec must not be null");
+            throw new InvalidNamespaceModelException("Namespace model must not be null");
         }
         return "Namespace not found: " + namespace.fullyQualifiedName();
     }
 
     /**
-     * Returns the {@link NamespaceSpec} that could not be found.
+     * Returns the {@link NamespaceModel} that could not be found.
      *
      * @return the missing namespace specification
      */
-    public NamespaceSpec getNamespaceSpec() {
-        return namespaceSpec;
+    public NamespaceModel getNamespaceModel() {
+        return namespaceModel;
     }
 
     /**
@@ -57,6 +57,6 @@ public class NamespaceNotFoundException extends LakehouseException {
      * @return namespace fully qualified name
      */
     public String getFullyQualifiedName() {
-        return namespaceSpec.fullyQualifiedName();
+        return namespaceModel.fullyQualifiedName();
     }
 }

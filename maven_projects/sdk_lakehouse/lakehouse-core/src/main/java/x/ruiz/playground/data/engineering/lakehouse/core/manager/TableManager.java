@@ -1,7 +1,7 @@
 package x.ruiz.playground.data.engineering.lakehouse.core.manager;
 
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableSpecException;
-import x.ruiz.playground.data.engineering.lakehouse.core.spec.TableSpec;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableModelException;
+import x.ruiz.playground.data.engineering.lakehouse.core.model.TableModel;
 
 import java.nio.file.Path;
 
@@ -10,47 +10,47 @@ import java.nio.file.Path;
  *
  * <p>File parsing and domain validation are encapsulated in {@link #createTable(Path)} so calling
  * libraries never interact with internal file parsers directly and engine subclasses cannot bypass
- * validation. Subclasses implement only {@link #doCreateTable(TableSpec)}.
+ * validation. Subclasses implement only {@link #doCreateTable(TableModel)}.
  */
 public abstract class TableManager {
 
-    private final FileSpecManager fileSpecManager;
+    private final FileModelManager fileModelManager;
 
     /**
      * Constructs a {@code TableManager} backed by the default internal YAML spec file manager.
      */
     protected TableManager() {
-        this(YamlFileSpecManager.INSTANCE);
+        this(YamlFileModelManager.INSTANCE);
     }
 
     /**
      * Package-private constructor allowing internal tests and future format routers to supply
-     * a custom {@link FileSpecManager}.
+     * a custom {@link FileModelManager}.
      *
-     * @param fileSpecManager non-null file spec manager used to parse table definitions
-     * @throws IllegalArgumentException if {@code fileSpecManager} is null
+     * @param fileModelManager non-null file spec manager used to parse table definitions
+     * @throws IllegalArgumentException if {@code fileModelManager} is null
      */
-    TableManager(FileSpecManager fileSpecManager) {
-        if (fileSpecManager == null) {
-            throw new IllegalArgumentException("File spec manager must not be null");
+    TableManager(FileModelManager fileModelManager) {
+        if (fileModelManager == null) {
+            throw new IllegalArgumentException("File model manager must not be null");
         }
-        this.fileSpecManager = fileSpecManager;
+        this.fileModelManager = fileModelManager;
     }
 
     /**
      * Parses and validates a declarative table specification file, then delegates creation to
-     * {@link #doCreateTable(TableSpec)}.
+     * {@link #doCreateTable(TableModel)}.
      *
-     * <p>If file parsing or spec validation fails, {@link #doCreateTable(TableSpec)} is never invoked.
+     * <p>If file parsing or spec validation fails, {@link #doCreateTable(TableModel)} is never invoked.
      *
      * @param sourcePath path to the table specification file
-     * @throws x.ruiz.playground.data.engineering.lakehouse.core.exception.SpecParseException
+     * @throws x.ruiz.playground.data.engineering.lakehouse.core.exception.ModelParseException
      *         if {@code sourcePath} is null, unreadable, empty, malformed, or contains unknown fields
-     * @throws x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidCatalogSpecException
+     * @throws x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidCatalogModelException
      *         if the catalog identifier is invalid
-     * @throws x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidNamespaceSpecException
+     * @throws x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidNamespaceModelException
      *         if the namespace identifier is invalid
-     * @throws InvalidTableSpecException
+     * @throws InvalidTableModelException
      *         if the table definition is invalid or the internal file manager returns {@code null}
      * @throws x.ruiz.playground.data.engineering.lakehouse.core.exception.CatalogNotFoundException
      *         if the target catalog has not been provisioned by the platform
@@ -60,15 +60,15 @@ public abstract class TableManager {
      *         if the underlying catalog or storage engine fails unexpectedly
      */
     public final void createTable(Path sourcePath) {
-        TableSpec spec = fileSpecManager.parseTable(sourcePath);
+        TableModel spec = fileModelManager.parseTable(sourcePath);
         if (spec == null) {
-            throw new InvalidTableSpecException("Parsed table spec must not be null");
+            throw new InvalidTableModelException("Parsed table model must not be null");
         }
         doCreateTable(spec);
     }
 
     /**
-     * Engine-specific hook to create the table represented by a validated {@link TableSpec}.
+     * Engine-specific hook to create the table represented by a validated {@link TableModel}.
      *
      * <p>Implementations must be idempotent (no-op if the table already exists), must throw
      * {@link x.ruiz.playground.data.engineering.lakehouse.core.exception.CatalogNotFoundException}
@@ -78,5 +78,5 @@ public abstract class TableManager {
      *
      * @param spec non-null, pre-validated table specification
      */
-    protected abstract void doCreateTable(TableSpec spec);
+    protected abstract void doCreateTable(TableModel spec);
 }
