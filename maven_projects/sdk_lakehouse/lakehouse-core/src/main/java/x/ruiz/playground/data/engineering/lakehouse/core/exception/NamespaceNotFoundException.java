@@ -1,6 +1,6 @@
 package x.ruiz.playground.data.engineering.lakehouse.core.exception;
 
-import x.ruiz.playground.data.engineering.lakehouse.core.NamespaceSpec;
+import x.ruiz.playground.data.engineering.lakehouse.core.spec.NamespaceSpec;
 
 public class NamespaceNotFoundException extends LakehouseException {
 
