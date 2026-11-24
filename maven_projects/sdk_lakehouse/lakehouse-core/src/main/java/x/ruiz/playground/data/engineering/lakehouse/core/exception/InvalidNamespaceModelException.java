@@ -1,17 +1,17 @@
 package x.ruiz.playground.data.engineering.lakehouse.core.exception;
 
 /**
- * Thrown when a {@link x.ruiz.playground.data.engineering.lakehouse.core.spec.NamespaceSpec}
+ * Thrown when a {@link x.ruiz.playground.data.engineering.lakehouse.core.model.NamespaceModel}
  * fails validation (for example, null catalog, invalid namespace name, or null spec input).
  */
-public class InvalidNamespaceSpecException extends LakehouseException {
+public class InvalidNamespaceModelException extends LakehouseException {
 
     /**
      * Creates a new exception with the specified detail message.
      *
      * @param message descriptive validation error message
      */
-    public InvalidNamespaceSpecException(String message) {
+    public InvalidNamespaceModelException(String message) {
         super(message);
     }
 
@@ -21,7 +21,7 @@ public class InvalidNamespaceSpecException extends LakehouseException {
      * @param message descriptive validation error message
      * @param cause   original failure cause
      */
-    public InvalidNamespaceSpecException(String message, Throwable cause) {
+    public InvalidNamespaceModelException(String message, Throwable cause) {
         super(message, cause);
     }
 }

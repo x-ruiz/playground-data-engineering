@@ -1,6 +1,6 @@
-package x.ruiz.playground.data.engineering.lakehouse.core.spec;
+package x.ruiz.playground.data.engineering.lakehouse.core.model;
 
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableSpecException;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableModelException;
 
 import java.util.Locale;
 
@@ -33,17 +33,17 @@ public enum ColumnType {
      *
      * @param raw raw type name (for example, {@code "date"} or {@code " BIGINT "})
      * @return the matching canonical {@link ColumnType}
-     * @throws InvalidTableSpecException if {@code raw} is null, blank, or does not match a supported type
+     * @throws InvalidTableModelException if {@code raw} is null, blank, or does not match a supported type
      */
     public static ColumnType fromString(String raw) {
         if (raw == null || raw.isBlank()) {
-            throw new InvalidTableSpecException("Column type must not be null or blank");
+            throw new InvalidTableModelException("Column type must not be null or blank");
         }
         String normalized = raw.trim().toUpperCase(Locale.ROOT);
         try {
             return ColumnType.valueOf(normalized);
         } catch (IllegalArgumentException e) {
-            throw new InvalidTableSpecException("Unsupported column type: '" + raw + "'", e);
+            throw new InvalidTableModelException("Unsupported column type: '" + raw + "'", e);
         }
     }
 }

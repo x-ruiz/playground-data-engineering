@@ -1,4 +1,4 @@
-package x.ruiz.playground.data.engineering.lakehouse.core.spec;
+package x.ruiz.playground.data.engineering.lakehouse.core.model;
 
 import x.ruiz.playground.data.engineering.lakehouse.core.exception.LakehouseException;
 
@@ -9,9 +9,9 @@ import java.util.regex.Pattern;
  * Root contract for immutable, self-validating lakehouse object specifications.
  *
  * <p>Implementations form an acyclic, top-down identity hierarchy:
- * {@link CatalogSpec} &larr; {@link NamespaceSpec} &larr; {@link TableSpec}.
+ * {@link CatalogModel} &larr; {@link NamespaceModel} &larr; {@link TableModel}.
  */
-public sealed interface LakehouseSpec permits CatalogSpec, NamespaceSpec, TableSpec {
+public sealed interface LakehouseModel permits CatalogModel, NamespaceModel, TableModel {
 
     /**
      * Allowed identifier format for catalog, namespace, table, and column names:

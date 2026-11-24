@@ -1,6 +1,6 @@
-package x.ruiz.playground.data.engineering.lakehouse.core.spec;
+package x.ruiz.playground.data.engineering.lakehouse.core.model;
 
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableSpecException;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableModelException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -9,48 +9,48 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Immutable, self-validating specification for a lakehouse table within a {@link NamespaceSpec}.
+ * Immutable, self-validating specification for a lakehouse table within a {@link NamespaceModel}.
  *
  * <p>Enforces at least one column, rejects null entries and case-insensitive duplicate column names,
  * defensively copies the column list, and normalizes an optional {@code partitionColumn} to the exact
- * casing of the matching {@link ColumnSpec#name()}.
+ * casing of the matching {@link ColumnModel#name()}.
  *
  * @param namespace       non-null owning namespace specification
- * @param name            validated table identifier matching {@link LakehouseSpec#VALID_IDENTIFIER}
- * @param columns         non-empty list of unique, non-null {@link ColumnSpec} definitions
+ * @param name            validated table identifier matching {@link LakehouseModel#VALID_IDENTIFIER}
+ * @param columns         non-empty list of unique, non-null {@link ColumnModel} definitions
  * @param partitionColumn optional identity partition column name ({@code null} for unpartitioned tables)
  */
-public record TableSpec(
-        NamespaceSpec namespace,
+public record TableModel(
+        NamespaceModel namespace,
         String name,
-        List<ColumnSpec> columns,
+        List<ColumnModel> columns,
         String partitionColumn
-) implements LakehouseSpec {
+) implements LakehouseModel {
 
     /**
      * Validates table composition, column uniqueness, and optional partition column membership,
      * defensively copying {@code columns} and normalizing {@code partitionColumn} casing.
      *
-     * @throws InvalidTableSpecException if any field violates table specification invariants
+     * @throws InvalidTableModelException if any field violates table specification invariants
      */
-    public TableSpec {
+    public TableModel {
         if (namespace == null) {
-            throw new InvalidTableSpecException("Namespace spec must not be null");
+            throw new InvalidTableModelException("Namespace model must not be null");
         }
-        LakehouseSpec.validateIdentifier("tableName", name, InvalidTableSpecException::new);
+        LakehouseModel.validateIdentifier("tableName", name, InvalidTableModelException::new);
 
         if (columns == null || columns.isEmpty()) {
-            throw new InvalidTableSpecException("Table must define at least one column");
+            throw new InvalidTableModelException("Table must define at least one column");
         }
 
         Map<String, String> canonicalNames = new HashMap<>();
-        for (ColumnSpec column : columns) {
+        for (ColumnModel column : columns) {
             if (column == null) {
-                throw new InvalidTableSpecException("Columns list must not contain null entries");
+                throw new InvalidTableModelException("Columns list must not contain null entries");
             }
             String normalizedName = column.name().toLowerCase(Locale.ROOT);
             if (canonicalNames.putIfAbsent(normalizedName, column.name()) != null) {
-                throw new InvalidTableSpecException(
+                throw new InvalidTableModelException(
                         "Duplicate column name (case-insensitive): '" + column.name() + "'");
             }
         }
@@ -58,13 +58,13 @@ public record TableSpec(
 
         if (partitionColumn != null) {
             if (partitionColumn.isBlank()) {
-                throw new InvalidTableSpecException(
+                throw new InvalidTableModelException(
                         "Partition column must not be blank (use null for unpartitioned tables)");
             }
             // Normalize partition column casing to match the exact defined column name for case-sensitive engines.
             String canonicalPartition = canonicalNames.get(partitionColumn.toLowerCase(Locale.ROOT));
             if (canonicalPartition == null) {
-                throw new InvalidTableSpecException(
+                throw new InvalidTableModelException(
                         "Partition column '" + partitionColumn + "' does not match any defined column");
             }
             partitionColumn = canonicalPartition;
@@ -72,11 +72,11 @@ public record TableSpec(
     }
 
     /**
-     * Convenience accessor returning the owning catalog via {@link NamespaceSpec#catalog()}.
+     * Convenience accessor returning the owning catalog via {@link NamespaceModel#catalog()}.
      *
      * @return the owning catalog specification
      */
-    public CatalogSpec catalog() {
+    public CatalogModel catalog() {
         return namespace.catalog();
     }
 

@@ -3,15 +3,15 @@ package x.ruiz.playground.data.engineering.lakehouse.core.manager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidCatalogSpecException;
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidNamespaceSpecException;
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableSpecException;
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.SpecParseException;
-import x.ruiz.playground.data.engineering.lakehouse.core.spec.CatalogSpec;
-import x.ruiz.playground.data.engineering.lakehouse.core.spec.ColumnSpec;
-import x.ruiz.playground.data.engineering.lakehouse.core.spec.ColumnType;
-import x.ruiz.playground.data.engineering.lakehouse.core.spec.NamespaceSpec;
-import x.ruiz.playground.data.engineering.lakehouse.core.spec.TableSpec;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidCatalogModelException;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidNamespaceModelException;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableModelException;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.ModelParseException;
+import x.ruiz.playground.data.engineering.lakehouse.core.model.CatalogModel;
+import x.ruiz.playground.data.engineering.lakehouse.core.model.ColumnModel;
+import x.ruiz.playground.data.engineering.lakehouse.core.model.ColumnType;
+import x.ruiz.playground.data.engineering.lakehouse.core.model.NamespaceModel;
+import x.ruiz.playground.data.engineering.lakehouse.core.model.TableModel;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -28,29 +28,29 @@ import java.util.concurrent.Future;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class YamlFileSpecManagerTest {
+class YamlFileModelManagerTest {
 
-    private final FileSpecManager fileSpecManager = YamlFileSpecManager.INSTANCE;
+    private final FileModelManager fileModelManager = YamlFileModelManager.INSTANCE;
 
     @Test
     void tc001ParsesValidTableYamlFixture() throws URISyntaxException {
         Path fixture = resourcePath("/table.yaml");
 
-        TableSpec spec = fileSpecManager.parseTable(fixture);
+        TableModel spec = fileModelManager.parseTable(fixture);
 
         assertThat(spec.fullyQualifiedName()).isEqualTo("data_lake.market_data.transactions");
-        assertThat(spec.catalog()).isEqualTo(new CatalogSpec("data_lake"));
+        assertThat(spec.catalog()).isEqualTo(new CatalogModel("data_lake"));
         assertThat(spec.catalog().fullyQualifiedName()).isEqualTo("data_lake");
-        assertThat(spec.namespace()).isEqualTo(new NamespaceSpec(new CatalogSpec("data_lake"), "market_data"));
+        assertThat(spec.namespace()).isEqualTo(new NamespaceModel(new CatalogModel("data_lake"), "market_data"));
         assertThat(spec.namespace().fullyQualifiedName()).isEqualTo("data_lake.market_data");
         assertThat(spec.name()).isEqualTo("transactions");
         assertThat(spec.isPartitioned()).isTrue();
         assertThat(spec.partitionColumn()).isEqualTo("date");
         assertThat(spec.partitionColumnOptional()).contains("date");
         assertThat(spec.columns()).containsExactly(
-                new ColumnSpec("date", ColumnType.DATE, false),
-                new ColumnSpec("id", ColumnType.BIGINT, false),
-                new ColumnSpec("amount", ColumnType.DECIMAL, true)
+                new ColumnModel("date", ColumnType.DATE, false),
+                new ColumnModel("id", ColumnType.BIGINT, false),
+                new ColumnModel("amount", ColumnType.DECIMAL, true)
         );
     }
 
@@ -69,13 +69,13 @@ class YamlFileSpecManagerTest {
                     nullable: false
                 """);
 
-        TableSpec spec = fileSpecManager.parseTable(yaml);
+        TableModel spec = fileModelManager.parseTable(yaml);
 
         assertThat(spec.isPartitioned()).isFalse();
         assertThat(spec.partitionColumnOptional()).isEmpty();
         assertThat(spec.columns()).containsExactly(
-                new ColumnSpec("symbol", ColumnType.STRING, true),
-                new ColumnSpec("price", ColumnType.DOUBLE, false)
+                new ColumnModel("symbol", ColumnType.STRING, true),
+                new ColumnModel("price", ColumnType.DOUBLE, false)
         );
     }
 
@@ -93,11 +93,11 @@ class YamlFileSpecManagerTest {
                     type: bigint
                 """);
 
-        TableSpec spec = fileSpecManager.parseTable(yaml);
+        TableModel spec = fileModelManager.parseTable(yaml);
 
         assertThat(spec.columns()).containsExactly(
-                new ColumnSpec("event_date", ColumnType.DATE, true),
-                new ColumnSpec("event_id", ColumnType.BIGINT, true)
+                new ColumnModel("event_date", ColumnType.DATE, true),
+                new ColumnModel("event_id", ColumnType.BIGINT, true)
         );
     }
 
@@ -113,8 +113,8 @@ class YamlFileSpecManagerTest {
                     type: VARCHR
                 """);
 
-        assertThatThrownBy(() -> fileSpecManager.parseTable(yaml))
-                .isInstanceOf(InvalidTableSpecException.class)
+        assertThatThrownBy(() -> fileModelManager.parseTable(yaml))
+                .isInstanceOf(InvalidTableModelException.class)
                 .hasMessageContaining("VARCHR");
     }
 
@@ -129,8 +129,8 @@ class YamlFileSpecManagerTest {
                   - name: id
                     type: BIGINT
                 """);
-        assertThatThrownBy(() -> fileSpecManager.parseTable(badCatalog))
-                .isInstanceOf(InvalidCatalogSpecException.class);
+        assertThatThrownBy(() -> fileModelManager.parseTable(badCatalog))
+                .isInstanceOf(InvalidCatalogModelException.class);
 
         Path badNamespace = tempDir.resolve("bad_namespace.yaml");
         Files.writeString(badNamespace, """
@@ -141,8 +141,8 @@ class YamlFileSpecManagerTest {
                   - name: id
                     type: BIGINT
                 """);
-        assertThatThrownBy(() -> fileSpecManager.parseTable(badNamespace))
-                .isInstanceOf(InvalidNamespaceSpecException.class);
+        assertThatThrownBy(() -> fileModelManager.parseTable(badNamespace))
+                .isInstanceOf(InvalidNamespaceModelException.class);
     }
 
     @Test
@@ -157,8 +157,8 @@ class YamlFileSpecManagerTest {
                     type: BIGINT
                   - null
                 """);
-        assertThatThrownBy(() -> fileSpecManager.parseTable(nullColumnEntry))
-                .isInstanceOf(InvalidTableSpecException.class);
+        assertThatThrownBy(() -> fileModelManager.parseTable(nullColumnEntry))
+                .isInstanceOf(InvalidTableModelException.class);
 
         Path badPartition = tempDir.resolve("bad_partition.yaml");
         Files.writeString(badPartition, """
@@ -170,8 +170,8 @@ class YamlFileSpecManagerTest {
                     type: BIGINT
                 partitionColumn: missing_col
                 """);
-        assertThatThrownBy(() -> fileSpecManager.parseTable(badPartition))
-                .isInstanceOf(InvalidTableSpecException.class)
+        assertThatThrownBy(() -> fileModelManager.parseTable(badPartition))
+                .isInstanceOf(InvalidTableModelException.class)
                 .hasMessageContaining("missing_col");
     }
 
@@ -188,8 +188,8 @@ class YamlFileSpecManagerTest {
                 partitonColumn: date
                 """);
 
-        assertThatThrownBy(() -> fileSpecManager.parseTable(typoYaml))
-                .isInstanceOf(SpecParseException.class)
+        assertThatThrownBy(() -> fileModelManager.parseTable(typoYaml))
+                .isInstanceOf(ModelParseException.class)
                 .hasCauseInstanceOf(JsonProcessingException.class);
     }
 
@@ -203,24 +203,24 @@ class YamlFileSpecManagerTest {
         Path malformed = tempDir.resolve("malformed.yaml");
         Files.writeString(malformed, "catalog: [unclosed\nnamespace: : :");
 
-        assertThatThrownBy(() -> fileSpecManager.parseTable(null)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> fileSpecManager.parseTable(missing))
-                .isInstanceOf(SpecParseException.class)
+        assertThatThrownBy(() -> fileModelManager.parseTable(null)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> fileModelManager.parseTable(missing))
+                .isInstanceOf(ModelParseException.class)
                 .hasCauseInstanceOf(IOException.class);
-        assertThatThrownBy(() -> fileSpecManager.parseTable(empty)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> fileSpecManager.parseTable(commentOnly)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> fileSpecManager.parseTable(malformed))
-                .isInstanceOf(SpecParseException.class)
+        assertThatThrownBy(() -> fileModelManager.parseTable(empty)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> fileModelManager.parseTable(commentOnly)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> fileModelManager.parseTable(malformed))
+                .isInstanceOf(ModelParseException.class)
                 .hasCauseInstanceOf(JsonProcessingException.class);
 
-        assertThatThrownBy(() -> fileSpecManager.parseNamespace(null)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> fileSpecManager.parseNamespace(missing))
-                .isInstanceOf(SpecParseException.class)
+        assertThatThrownBy(() -> fileModelManager.parseNamespace(null)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> fileModelManager.parseNamespace(missing))
+                .isInstanceOf(ModelParseException.class)
                 .hasCauseInstanceOf(IOException.class);
-        assertThatThrownBy(() -> fileSpecManager.parseNamespace(empty)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> fileSpecManager.parseNamespace(commentOnly)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> fileSpecManager.parseNamespace(malformed))
-                .isInstanceOf(SpecParseException.class)
+        assertThatThrownBy(() -> fileModelManager.parseNamespace(empty)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> fileModelManager.parseNamespace(commentOnly)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> fileModelManager.parseNamespace(malformed))
+                .isInstanceOf(ModelParseException.class)
                 .hasCauseInstanceOf(JsonProcessingException.class);
     }
 
@@ -228,9 +228,9 @@ class YamlFileSpecManagerTest {
     void tc011ParsesValidNamespaceYamlFixture() throws URISyntaxException {
         Path fixture = resourcePath("/namespace.yaml");
 
-        NamespaceSpec spec = fileSpecManager.parseNamespace(fixture);
+        NamespaceModel spec = fileModelManager.parseNamespace(fixture);
 
-        assertThat(spec.catalog()).isEqualTo(new CatalogSpec("data_lake"));
+        assertThat(spec.catalog()).isEqualTo(new CatalogModel("data_lake"));
         assertThat(spec.catalog().fullyQualifiedName()).isEqualTo("data_lake");
         assertThat(spec.name()).isEqualTo("market_data");
         assertThat(spec.fullyQualifiedName()).isEqualTo("data_lake.market_data");
@@ -242,23 +242,23 @@ class YamlFileSpecManagerTest {
         Files.writeString(missingCatalog, """
                 namespace: market_data
                 """);
-        assertThatThrownBy(() -> fileSpecManager.parseNamespace(missingCatalog))
-                .isInstanceOf(InvalidCatalogSpecException.class);
+        assertThatThrownBy(() -> fileModelManager.parseNamespace(missingCatalog))
+                .isInstanceOf(InvalidCatalogModelException.class);
 
         Path missingNamespace = tempDir.resolve("missing_ns.yaml");
         Files.writeString(missingNamespace, """
                 catalog: data_lake
                 """);
-        assertThatThrownBy(() -> fileSpecManager.parseNamespace(missingNamespace))
-                .isInstanceOf(InvalidNamespaceSpecException.class);
+        assertThatThrownBy(() -> fileModelManager.parseNamespace(missingNamespace))
+                .isInstanceOf(InvalidNamespaceModelException.class);
 
         Path badIdentifier = tempDir.resolve("bad_id.yaml");
         Files.writeString(badIdentifier, """
                 catalog: data_lake
                 namespace: market.data
                 """);
-        assertThatThrownBy(() -> fileSpecManager.parseNamespace(badIdentifier))
-                .isInstanceOf(InvalidNamespaceSpecException.class);
+        assertThatThrownBy(() -> fileModelManager.parseNamespace(badIdentifier))
+                .isInstanceOf(InvalidNamespaceModelException.class);
 
         Path unknownKey = tempDir.resolve("unknown_key.yaml");
         Files.writeString(unknownKey, """
@@ -266,26 +266,26 @@ class YamlFileSpecManagerTest {
                 namespace: market_data
                 extraField: unexpected
                 """);
-        assertThatThrownBy(() -> fileSpecManager.parseNamespace(unknownKey))
-                .isInstanceOf(SpecParseException.class)
+        assertThatThrownBy(() -> fileModelManager.parseNamespace(unknownKey))
+                .isInstanceOf(ModelParseException.class)
                 .hasCauseInstanceOf(JsonProcessingException.class);
     }
 
     @Test
     void tc016SupportsConcurrentParsingAcrossMultipleThreads() throws Exception {
         Path fixture = resourcePath("/table.yaml");
-        TableSpec expected = fileSpecManager.parseTable(fixture);
+        TableModel expected = fileModelManager.parseTable(fixture);
 
         int threads = 8;
         int invocations = 40;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
         try {
-            List<Callable<TableSpec>> tasks = new ArrayList<>(invocations);
+            List<Callable<TableModel>> tasks = new ArrayList<>(invocations);
             for (int i = 0; i < invocations; i++) {
-                tasks.add(() -> fileSpecManager.parseTable(fixture));
+                tasks.add(() -> fileModelManager.parseTable(fixture));
             }
-            List<Future<TableSpec>> futures = executor.invokeAll(tasks);
-            for (Future<TableSpec> future : futures) {
+            List<Future<TableModel>> futures = executor.invokeAll(tasks);
+            for (Future<TableModel> future : futures) {
                 assertThat(future.get()).isEqualTo(expected);
             }
         } finally {
@@ -295,7 +295,7 @@ class YamlFileSpecManagerTest {
 
     private static Path resourcePath(String resource) throws URISyntaxException {
         return Path.of(Objects.requireNonNull(
-                YamlFileSpecManagerTest.class.getResource(resource),
+                YamlFileModelManagerTest.class.getResource(resource),
                 "Missing test resource: " + resource
         ).toURI());
     }

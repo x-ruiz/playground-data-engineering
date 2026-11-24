@@ -1,6 +1,6 @@
-package x.ruiz.playground.data.engineering.lakehouse.core.spec;
+package x.ruiz.playground.data.engineering.lakehouse.core.model;
 
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidCatalogSpecException;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidCatalogModelException;
 
 /**
  * Immutable identity reference to a platform-provisioned lakehouse catalog.
@@ -8,17 +8,17 @@ import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidCatalo
  * <p>Catalogs are provisioned externally by platform infrastructure rather than declarative YAML;
  * connection and engine configuration belong in engine adapter modules.
  *
- * @param name validated catalog identifier matching {@link LakehouseSpec#VALID_IDENTIFIER}
+ * @param name validated catalog identifier matching {@link LakehouseModel#VALID_IDENTIFIER}
  */
-public record CatalogSpec(String name) implements LakehouseSpec {
+public record CatalogModel(String name) implements LakehouseModel {
 
     /**
      * Validates the catalog identifier upon construction.
      *
-     * @throws InvalidCatalogSpecException if {@code name} is null, blank, or invalid
+     * @throws InvalidCatalogModelException if {@code name} is null, blank, or invalid
      */
-    public CatalogSpec {
-        LakehouseSpec.validateIdentifier("catalog", name, InvalidCatalogSpecException::new);
+    public CatalogModel {
+        LakehouseModel.validateIdentifier("catalog", name, InvalidCatalogModelException::new);
     }
 
     /**

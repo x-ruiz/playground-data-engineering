@@ -4,15 +4,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import x.ruiz.playground.data.engineering.lakehouse.core.exception.CatalogNotFoundException;
 import x.ruiz.playground.data.engineering.lakehouse.core.exception.CatalogOperationException;
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidCatalogSpecException;
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidNamespaceSpecException;
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableSpecException;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidCatalogModelException;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidNamespaceModelException;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableModelException;
 import x.ruiz.playground.data.engineering.lakehouse.core.exception.LakehouseException;
 import x.ruiz.playground.data.engineering.lakehouse.core.exception.NamespaceNotFoundException;
-import x.ruiz.playground.data.engineering.lakehouse.core.exception.SpecParseException;
-import x.ruiz.playground.data.engineering.lakehouse.core.spec.CatalogSpec;
-import x.ruiz.playground.data.engineering.lakehouse.core.spec.NamespaceSpec;
-import x.ruiz.playground.data.engineering.lakehouse.core.spec.TableSpec;
+import x.ruiz.playground.data.engineering.lakehouse.core.exception.ModelParseException;
+import x.ruiz.playground.data.engineering.lakehouse.core.model.CatalogModel;
+import x.ruiz.playground.data.engineering.lakehouse.core.model.NamespaceModel;
+import x.ruiz.playground.data.engineering.lakehouse.core.model.TableModel;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -31,18 +31,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ServiceContractsAndExceptionsTest {
 
-    private static final CatalogSpec DATA_LAKE = new CatalogSpec("data_lake");
-    private static final NamespaceSpec MARKET_DATA = new NamespaceSpec(DATA_LAKE, "market_data");
+    private static final CatalogModel DATA_LAKE = new CatalogModel("data_lake");
+    private static final NamespaceModel MARKET_DATA = new NamespaceModel(DATA_LAKE, "market_data");
 
     @Test
     void tc014NotFoundExceptionsAndExceptionHierarchyPreserveMetadataAndCauses() {
-        CatalogSpec missingCatalog = new CatalogSpec("missing_catalog");
-        NamespaceSpec missingNs = new NamespaceSpec(DATA_LAKE, "missing_ns");
+        CatalogModel missingCatalog = new CatalogModel("missing_catalog");
+        NamespaceModel missingNs = new NamespaceModel(DATA_LAKE, "missing_ns");
         RuntimeException rootCause = new RuntimeException("404 from REST catalog");
 
         CatalogNotFoundException catalogNotFound = new CatalogNotFoundException(missingCatalog);
         assertThat(catalogNotFound).isInstanceOf(LakehouseException.class);
-        assertThat(catalogNotFound.getCatalogSpec()).isEqualTo(missingCatalog);
+        assertThat(catalogNotFound.getCatalogModel()).isEqualTo(missingCatalog);
         assertThat(catalogNotFound.getFullyQualifiedName()).isEqualTo("missing_catalog");
         assertThat(catalogNotFound.getMessage()).contains("missing_catalog");
 
@@ -51,11 +51,11 @@ class ServiceContractsAndExceptionsTest {
         assertThat(catalogNotFoundWithCause.getFullyQualifiedName()).isEqualTo("missing_catalog");
 
         assertThatThrownBy(() -> new CatalogNotFoundException(null))
-                .isInstanceOf(InvalidCatalogSpecException.class);
+                .isInstanceOf(InvalidCatalogModelException.class);
 
         NamespaceNotFoundException ex = new NamespaceNotFoundException(missingNs);
         assertThat(ex).isInstanceOf(LakehouseException.class);
-        assertThat(ex.getNamespaceSpec()).isEqualTo(missingNs);
+        assertThat(ex.getNamespaceModel()).isEqualTo(missingNs);
         assertThat(ex.getFullyQualifiedName()).isEqualTo("data_lake.missing_ns");
         assertThat(ex.getMessage()).contains("data_lake.missing_ns");
 
@@ -64,14 +64,14 @@ class ServiceContractsAndExceptionsTest {
         assertThat(exWithCause.getFullyQualifiedName()).isEqualTo("data_lake.missing_ns");
 
         assertThatThrownBy(() -> new NamespaceNotFoundException(null))
-                .isInstanceOf(InvalidNamespaceSpecException.class);
+                .isInstanceOf(InvalidNamespaceModelException.class);
 
         IOException ioCause = new IOException("connection reset");
         CatalogOperationException catalogEx = new CatalogOperationException("Catalog unreachable", ioCause);
         assertThat(catalogEx).isInstanceOf(LakehouseException.class);
         assertThat(catalogEx.getCause()).isSameAs(ioCause);
 
-        SpecParseException parseEx = new SpecParseException("Bad YAML", ioCause);
+        ModelParseException parseEx = new ModelParseException("Bad YAML", ioCause);
         assertThat(parseEx).isInstanceOf(LakehouseException.class);
         assertThat(parseEx.getCause()).isSameAs(ioCause);
     }
@@ -89,19 +89,19 @@ class ServiceContractsAndExceptionsTest {
         // Catalog must be pre-provisioned by the platform; missing catalog must fail and never auto-create
         assertThatThrownBy(() -> namespaceManager.namespaceExists(namespaceYaml))
                 .isInstanceOf(CatalogNotFoundException.class)
-                .extracting(e -> ((CatalogNotFoundException) e).getCatalogSpec())
+                .extracting(e -> ((CatalogNotFoundException) e).getCatalogModel())
                 .isEqualTo(DATA_LAKE);
         assertThatThrownBy(() -> namespaceManager.namespaceExists(MARKET_DATA))
                 .isInstanceOf(CatalogNotFoundException.class)
-                .extracting(e -> ((CatalogNotFoundException) e).getCatalogSpec())
+                .extracting(e -> ((CatalogNotFoundException) e).getCatalogModel())
                 .isEqualTo(DATA_LAKE);
         assertThatThrownBy(() -> namespaceManager.createNamespace(namespaceYaml))
                 .isInstanceOf(CatalogNotFoundException.class)
-                .extracting(e -> ((CatalogNotFoundException) e).getCatalogSpec())
+                .extracting(e -> ((CatalogNotFoundException) e).getCatalogModel())
                 .isEqualTo(DATA_LAKE);
         assertThatThrownBy(() -> tableManager.createTable(tableYaml))
                 .isInstanceOf(CatalogNotFoundException.class)
-                .extracting(e -> ((CatalogNotFoundException) e).getCatalogSpec())
+                .extracting(e -> ((CatalogNotFoundException) e).getCatalogModel())
                 .isEqualTo(DATA_LAKE);
         assertThat(store.catalogs).isEmpty();
         assertThat(store.namespaces).isEmpty();
@@ -115,7 +115,7 @@ class ServiceContractsAndExceptionsTest {
         assertThat(namespaceManager.namespaceExists(MARKET_DATA)).isFalse();
         assertThatThrownBy(() -> tableManager.createTable(tableYaml))
                 .isInstanceOf(NamespaceNotFoundException.class)
-                .extracting(e -> ((NamespaceNotFoundException) e).getNamespaceSpec())
+                .extracting(e -> ((NamespaceNotFoundException) e).getNamespaceModel())
                 .isEqualTo(MARKET_DATA);
 
         // Create namespace via Path: void + idempotent across repeated invocations
@@ -132,16 +132,16 @@ class ServiceContractsAndExceptionsTest {
     }
 
     @Test
-    void tc018EnforcesPackagePrivateFileSpecManagersAndTemplateMethodModifiers() throws NoSuchMethodException {
-        assertThat(FileSpecManager.class.isInterface()).isTrue();
-        assertThat(Modifier.isPublic(FileSpecManager.class.getModifiers())).isFalse();
-        assertThat(Modifier.isPublic(YamlFileSpecManager.class.getModifiers())).isFalse();
-        assertThat(Modifier.isFinal(YamlFileSpecManager.class.getModifiers())).isTrue();
-        assertThat(FileSpecManager.class.isAssignableFrom(YamlFileSpecManager.class)).isTrue();
+    void tc018EnforcesPackagePrivateFileModelManagersAndTemplateMethodModifiers() throws NoSuchMethodException {
+        assertThat(FileModelManager.class.isInterface()).isTrue();
+        assertThat(Modifier.isPublic(FileModelManager.class.getModifiers())).isFalse();
+        assertThat(Modifier.isPublic(YamlFileModelManager.class.getModifiers())).isFalse();
+        assertThat(Modifier.isFinal(YamlFileModelManager.class.getModifiers())).isTrue();
+        assertThat(FileModelManager.class.isAssignableFrom(YamlFileModelManager.class)).isTrue();
 
-        assertThat(FileSpecManager.class.getDeclaredMethod("parseTable", Path.class)).isNotNull();
-        assertThat(FileSpecManager.class.getDeclaredMethod("parseNamespace", Path.class)).isNotNull();
-        assertThat(FileSpecManager.class.getDeclaredMethod("readFile", Path.class, Class.class, String.class))
+        assertThat(FileModelManager.class.getDeclaredMethod("parseTable", Path.class)).isNotNull();
+        assertThat(FileModelManager.class.getDeclaredMethod("parseNamespace", Path.class)).isNotNull();
+        assertThat(FileModelManager.class.getDeclaredMethod("readFile", Path.class, Class.class, String.class))
                 .isNotNull();
 
         assertThat(Modifier.isPublic(TableManager.class.getModifiers())).isTrue();
@@ -153,7 +153,7 @@ class ServiceContractsAndExceptionsTest {
         assertThat(Modifier.isPublic(createTable.getModifiers())).isTrue();
         assertThat(Modifier.isFinal(createTable.getModifiers())).isTrue();
 
-        Method doCreateTable = TableManager.class.getDeclaredMethod("doCreateTable", TableSpec.class);
+        Method doCreateTable = TableManager.class.getDeclaredMethod("doCreateTable", TableModel.class);
         assertThat(Modifier.isProtected(doCreateTable.getModifiers())).isTrue();
         assertThat(Modifier.isAbstract(doCreateTable.getModifiers())).isTrue();
 
@@ -165,15 +165,15 @@ class ServiceContractsAndExceptionsTest {
         assertThat(Modifier.isPublic(nsExistsPath.getModifiers())).isTrue();
         assertThat(Modifier.isFinal(nsExistsPath.getModifiers())).isTrue();
 
-        Method nsExistsSpec = NamespaceManager.class.getDeclaredMethod("namespaceExists", NamespaceSpec.class);
+        Method nsExistsSpec = NamespaceManager.class.getDeclaredMethod("namespaceExists", NamespaceModel.class);
         assertThat(Modifier.isPublic(nsExistsSpec.getModifiers())).isTrue();
         assertThat(Modifier.isFinal(nsExistsSpec.getModifiers())).isTrue();
 
-        Method doCreateNs = NamespaceManager.class.getDeclaredMethod("doCreateNamespace", NamespaceSpec.class);
+        Method doCreateNs = NamespaceManager.class.getDeclaredMethod("doCreateNamespace", NamespaceModel.class);
         assertThat(Modifier.isProtected(doCreateNs.getModifiers())).isTrue();
         assertThat(Modifier.isAbstract(doCreateNs.getModifiers())).isTrue();
 
-        Method doNsExists = NamespaceManager.class.getDeclaredMethod("doNamespaceExists", NamespaceSpec.class);
+        Method doNsExists = NamespaceManager.class.getDeclaredMethod("doNamespaceExists", NamespaceModel.class);
         assertThat(Modifier.isProtected(doNsExists.getModifiers())).isTrue();
         assertThat(Modifier.isAbstract(doNsExists.getModifiers())).isTrue();
     }
@@ -186,19 +186,19 @@ class ServiceContractsAndExceptionsTest {
 
         TableManager spyTableManager = new TableManager() {
             @Override
-            protected void doCreateTable(TableSpec spec) {
+            protected void doCreateTable(TableModel spec) {
                 tableHookCalls.incrementAndGet();
             }
         };
 
         NamespaceManager spyNamespaceManager = new NamespaceManager() {
             @Override
-            protected void doCreateNamespace(NamespaceSpec spec) {
+            protected void doCreateNamespace(NamespaceModel spec) {
                 namespaceCreateCalls.incrementAndGet();
             }
 
             @Override
-            protected boolean doNamespaceExists(NamespaceSpec spec) {
+            protected boolean doNamespaceExists(NamespaceModel spec) {
                 namespaceExistsCalls.incrementAndGet();
                 return false;
             }
@@ -223,88 +223,88 @@ class ServiceContractsAndExceptionsTest {
                 """);
 
         // Null path, missing, malformed, and semantically invalid YAML must never reach subclass hooks
-        assertThatThrownBy(() -> spyTableManager.createTable(null)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> spyTableManager.createTable(missing)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> spyTableManager.createTable(malformed)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> spyTableManager.createTable(badTable)).isInstanceOf(InvalidTableSpecException.class);
+        assertThatThrownBy(() -> spyTableManager.createTable(null)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> spyTableManager.createTable(missing)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> spyTableManager.createTable(malformed)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> spyTableManager.createTable(badTable)).isInstanceOf(InvalidTableModelException.class);
 
-        assertThatThrownBy(() -> spyNamespaceManager.createNamespace(null)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> spyNamespaceManager.createNamespace(missing)).isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> spyNamespaceManager.createNamespace(malformed)).isInstanceOf(SpecParseException.class);
+        assertThatThrownBy(() -> spyNamespaceManager.createNamespace(null)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> spyNamespaceManager.createNamespace(missing)).isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> spyNamespaceManager.createNamespace(malformed)).isInstanceOf(ModelParseException.class);
         assertThatThrownBy(() -> spyNamespaceManager.createNamespace(badCatalog))
-                .isInstanceOf(InvalidCatalogSpecException.class);
+                .isInstanceOf(InvalidCatalogModelException.class);
 
         assertThatThrownBy(() -> spyNamespaceManager.namespaceExists((Path) null))
-                .isInstanceOf(SpecParseException.class);
+                .isInstanceOf(ModelParseException.class);
         assertThatThrownBy(() -> spyNamespaceManager.namespaceExists(missing))
-                .isInstanceOf(SpecParseException.class);
-        assertThatThrownBy(() -> spyNamespaceManager.namespaceExists((NamespaceSpec) null))
-                .isInstanceOf(InvalidNamespaceSpecException.class);
+                .isInstanceOf(ModelParseException.class);
+        assertThatThrownBy(() -> spyNamespaceManager.namespaceExists((NamespaceModel) null))
+                .isInstanceOf(InvalidNamespaceModelException.class);
 
         assertThat(tableHookCalls).hasValue(0);
         assertThat(namespaceCreateCalls).hasValue(0);
         assertThat(namespaceExistsCalls).hasValue(0);
 
-        // Package-private constructors reject null FileSpecManager and guard null parsed specs
+        // Package-private constructors reject null FileModelManager and guard null parsed specs
         assertThatThrownBy(() -> new TableManager(null) {
             @Override
-            protected void doCreateTable(TableSpec spec) {
+            protected void doCreateTable(TableModel spec) {
             }
         }).isInstanceOf(IllegalArgumentException.class);
 
         assertThatThrownBy(() -> new NamespaceManager(null) {
             @Override
-            protected void doCreateNamespace(NamespaceSpec spec) {
+            protected void doCreateNamespace(NamespaceModel spec) {
             }
 
             @Override
-            protected boolean doNamespaceExists(NamespaceSpec spec) {
+            protected boolean doNamespaceExists(NamespaceModel spec) {
                 return false;
             }
         }).isInstanceOf(IllegalArgumentException.class);
 
-        FileSpecManager nullReturningFileManager = new FileSpecManager() {
+        FileModelManager nullReturningFileManager = new FileModelManager() {
             @Override
-            public TableSpec parseTable(Path sourcePath) {
+            public TableModel parseTable(Path sourcePath) {
                 return null;
             }
 
             @Override
-            public NamespaceSpec parseNamespace(Path sourcePath) {
+            public NamespaceModel parseNamespace(Path sourcePath) {
                 return null;
             }
 
             @Override
-            public <D> D readFile(Path sourcePath, Class<D> targetType, String specKind) {
+            public <D> D readFile(Path sourcePath, Class<D> targetType, String modelKind) {
                 return null;
             }
         };
 
         TableManager nullReturningTableManager = new TableManager(nullReturningFileManager) {
             @Override
-            protected void doCreateTable(TableSpec spec) {
+            protected void doCreateTable(TableModel spec) {
                 tableHookCalls.incrementAndGet();
             }
         };
         NamespaceManager nullReturningNamespaceManager = new NamespaceManager(nullReturningFileManager) {
             @Override
-            protected void doCreateNamespace(NamespaceSpec spec) {
+            protected void doCreateNamespace(NamespaceModel spec) {
                 namespaceCreateCalls.incrementAndGet();
             }
 
             @Override
-            protected boolean doNamespaceExists(NamespaceSpec spec) {
+            protected boolean doNamespaceExists(NamespaceModel spec) {
                 namespaceExistsCalls.incrementAndGet();
                 return false;
             }
         };
 
         assertThatThrownBy(() -> nullReturningTableManager.createTable(missing))
-                .isInstanceOf(InvalidTableSpecException.class);
+                .isInstanceOf(InvalidTableModelException.class);
         assertThatThrownBy(() -> nullReturningNamespaceManager.createNamespace(missing))
-                .isInstanceOf(InvalidNamespaceSpecException.class);
+                .isInstanceOf(InvalidNamespaceModelException.class);
         assertThatThrownBy(() -> nullReturningNamespaceManager.namespaceExists(missing))
-                .isInstanceOf(InvalidNamespaceSpecException.class);
+                .isInstanceOf(InvalidNamespaceModelException.class);
 
         assertThat(tableHookCalls).hasValue(0);
         assertThat(namespaceCreateCalls).hasValue(0);
@@ -323,11 +323,11 @@ class ServiceContractsAndExceptionsTest {
         private final Set<String> namespaces = new HashSet<>();
         private final Set<String> tables = new HashSet<>();
 
-        void provisionCatalog(CatalogSpec catalog) {
+        void provisionCatalog(CatalogModel catalog) {
             catalogs.add(catalog.fullyQualifiedName());
         }
 
-        void requireCatalog(CatalogSpec catalog) {
+        void requireCatalog(CatalogModel catalog) {
             if (!catalogs.contains(catalog.fullyQualifiedName())) {
                 throw new CatalogNotFoundException(catalog);
             }
@@ -342,13 +342,13 @@ class ServiceContractsAndExceptionsTest {
         }
 
         @Override
-        protected void doCreateNamespace(NamespaceSpec spec) {
+        protected void doCreateNamespace(NamespaceModel spec) {
             store.requireCatalog(spec.catalog());
             store.namespaces.add(spec.fullyQualifiedName());
         }
 
         @Override
-        protected boolean doNamespaceExists(NamespaceSpec spec) {
+        protected boolean doNamespaceExists(NamespaceModel spec) {
             store.requireCatalog(spec.catalog());
             return store.namespaces.contains(spec.fullyQualifiedName());
         }
@@ -362,7 +362,7 @@ class ServiceContractsAndExceptionsTest {
         }
 
         @Override
-        protected void doCreateTable(TableSpec spec) {
+        protected void doCreateTable(TableModel spec) {
             store.requireCatalog(spec.catalog());
             if (!store.namespaces.contains(spec.namespace().fullyQualifiedName())) {
                 throw new NamespaceNotFoundException(spec.namespace());
