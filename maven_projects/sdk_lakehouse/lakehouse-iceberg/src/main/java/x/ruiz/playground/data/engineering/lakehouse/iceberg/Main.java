@@ -1,11 +1,12 @@
 package x.ruiz.playground.data.engineering.lakehouse.iceberg;
 
-import x.ruiz.playground.data.engineering.lakehouse.core.TableParser;
-import x.ruiz.playground.data.engineering.lakehouse.core.YamlTableParser;
+import x.ruiz.playground.data.engineering.lakehouse.core.CatalogSpec;
+import x.ruiz.playground.data.engineering.lakehouse.core.NamespaceSpec;
 
 public class Main {
     public static void main(String[] args) {
-        TableParser parser = new YamlTableParser();
-        System.out.println(parser.parseData());
+        CatalogSpec catalogSpec = new CatalogSpec("data_lakehouse");
+        NamespaceSpec namespaceSpec = new NamespaceSpec(catalogSpec, "marketdata");
+        System.out.println(namespaceSpec.fullyQualifiedName());
     }
 }

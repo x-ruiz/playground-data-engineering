@@ -1,0 +1,19 @@
+catalog: "data_lake"
+namespace: "market_data"
+table_name: "transactions"
+columns {
+  name: "date"
+  type: "DATE"
+  nullable: false
+}
+columns {
+  name: "id"
+  type: "BIGINT"
+  nullable: false
+}
+columns {
+  name: "amount"
+  type: "DECIMAL"
+  nullable: true
+}
+partition_column: "date"

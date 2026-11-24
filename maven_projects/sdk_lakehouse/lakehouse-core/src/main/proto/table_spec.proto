@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package x.ruiz.playground.data.engineering.lakehouse.core.proto;
+
+option java_multiple_files = true;
+option java_package = "x.ruiz.playground.data.engineering.lakehouse.core.proto";
+option java_outer_classname = "TableSpecProtos";
+
+message TableSpecProto {
+  string catalog = 1;
+  string namespace = 2;
+  string table_name = 3;
+  repeated ColumnProto columns = 4;
+  optional string partition_column = 5;
+}
+
+message ColumnProto {
+  string name = 1;
+  string type = 2;
+  optional bool nullable = 3;
+}
