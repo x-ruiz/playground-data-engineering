@@ -42,8 +42,8 @@
 ## 3. Functional Requirements
 
 ### Repository & Module Structure
-- `REQ-01`: The Maven reactor (`sdk.lakehouse`) shall organize code into one engine-agnostic contract module (`lakehouse-core`) and one sibling module per storage/table engine (`lakehouse-<engine>`, starting with `lakehouse-iceberg`). Engine modules may depend on `lakehouse-core`; `lakehouse-core` shall never depend on any engine module, Apache Iceberg, Apache Spark, or cloud-provider SDK.
-- `REQ-02`: Cross-cutting repository and architecture specs (`00_*`) shall reside in root `specs/`; module-specific feature specs shall reside in `<module>/specs/NN_<snake_case>.md`; implementation plans shall reside in root `plans/NN_<snake_case>.md`.
+- `REQ-01`: The Maven reactor (`sdk.lakehouse`) shall organize code into one engine-agnostic contract module (`lakehouse-core`), one cloud-agnostic sibling module per storage/table engine (`lakehouse-<engine>`, starting with `lakehouse-iceberg`), and optional thin cloud-plugin modules (`lakehouse-<engine>-<cloud>`, such as `lakehouse-iceberg-aws` and future `lakehouse-iceberg-gcp`) discovered via Java `ServiceLoader` SPI. Engine modules depend on `lakehouse-core` and remain free of cloud-specific SDKs; cloud-plugin modules depend on their parent engine module (`lakehouse-<engine>`); `lakehouse-core` shall never depend on any engine module, Apache Iceberg, Apache Spark, or cloud-provider SDK.
+- `REQ-02`: All repository and feature specs shall reside in root `specs/NN_<snake_case>.md` (starting with `00_` for repository structure, `01_` for `lakehouse-core`, `02_` for `lakehouse-iceberg`); implementation plans shall reside in root `plans/NN_<snake_case>.md`.
 
 ### `lakehouse-core` Package Organization
 - `REQ-03`: All production Java types in `lakehouse-core` shall be organized into three role-based subpackages beneath `x.ruiz.playground.data.engineering.lakehouse.core`: `.model`, `.manager`, and `.exception`. No production classes shall reside directly in `...lakehouse.core`.
@@ -78,11 +78,11 @@ sdk_lakehouse/
 ├── plans/
 │   └── 01_<plan_name>.md                    # Sequential implementation plans
 ├── specs/
-│   └── 00_project_structure_and_organization.md  # Cross-cutting architecture specs
+│   ├── 00_project_structure_and_organization.md  # Cross-cutting architecture spec
+│   ├── 01_lakehouse_core_contracts.md            # Core module feature spec
+│   └── 02_iceberg_catalog_adapter.md             # Iceberg adapter + SPI plugin spec
 ├── lakehouse-core/                          # Pure Java 17 engine-agnostic contracts
 │   ├── pom.xml
-│   ├── specs/
-│   │   └── 01_lakehouse_core_contracts.md   # Module-level feature specs
 │   └── src/
 │       ├── main/
 │       │   ├── java/x/ruiz/playground/data/engineering/lakehouse/core/
@@ -96,14 +96,25 @@ sdk_lakehouse/
 │           │   ├── model/                    # Spec & type unit tests
 │           │   └── manager/                 # Manager template, parser & exception unit tests
 │           └── resources/                   # Fixture files (table.yaml, namespace.yaml, table.textproto)
-└── lakehouse-iceberg/                       # Apache Iceberg adapter module
+├── lakehouse-iceberg/                       # Cloud-agnostic Apache Iceberg adapter module
+│   ├── pom.xml
+│   └── src/
+│       ├── main/
+│       │   ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/
+│       │   │   ├── ...                      # Flat managers & package-private mappers
+│       │   │   └── catalog/                 # Catalog SPI & built-in providers (3+ classes)
+│       │   └── resources/META-INF/services/ # ServiceLoader provider registrations
+│       └── test/
+│           ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/
+│           └── resources/
+└── lakehouse-iceberg-aws/                   # Thin AWS / MinIO SPI plugin module (zero GCP deps)
     ├── pom.xml
-    ├── specs/                               # Iceberg module feature specs (starting at 01_ or 02_)
     └── src/
-        ├── main/java/x/ruiz/playground/data/engineering/lakehouse/iceberg/
-        │   └── ...                          # Flat by default; package-private mappers/helpers
+        ├── main/
+        │   ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/aws/
+        │   └── resources/META-INF/services/ # AWS / MinIO ServiceLoader registrations
         └── test/
-            ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/
+            ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/aws/
             └── resources/
 ```
 
@@ -112,8 +123,9 @@ sdk_lakehouse/
 | Module | Artifact ID | Responsibility | Allowed Internal Deps | Forbidden Dependencies |
 | :--- | :--- | :--- | :--- | :--- |
 | Root Reactor | `sdk.lakehouse` (`pom`) | Centralizes Maven `dependencyManagement`, `pluginManagement`, and Java 17 release config. | Declares child modules only. | N/A (`pom` packaging). |
-| Core Contracts | `lakehouse-core` (`jar`) | Immutable domain specs, service ports, file/wire parsers, and custom exceptions. | None (leaf module). | `lakehouse-*` engine modules, `org.apache.iceberg.*`, `org.apache.spark.*`, AWS/GCP/Azure SDKs. |
-| Iceberg Adapter | `lakehouse-iceberg` (`jar`) | Implements `lakehouse-core` managers against Apache Iceberg Catalogs + type/partition mapping. | `lakehouse-core`. | Other engine modules (`lakehouse-delta`, etc.). |
+| Core Contracts | `lakehouse-core` (`jar`) | Immutable domain models, Template-Method managers, package-private file model managers, and custom exceptions. | None (leaf module). | `lakehouse-*` engine modules, `org.apache.iceberg.*`, `org.apache.spark.*`, AWS/GCP/Azure SDKs. |
+| Iceberg Adapter | `lakehouse-iceberg` (`jar`) | Cloud-agnostic Iceberg managers, type/partition mapping, and `IcebergCatalogProvider` SPI + built-in providers (`in_memory`, `generic`). | `lakehouse-core`. | Cloud SDKs (`iceberg-aws`, `iceberg-gcp`), other engine modules (`lakehouse-delta`, etc.). |
+| Iceberg Cloud Plugins | `lakehouse-iceberg-<cloud>` (`jar`) | Thin SPI plugin JARs (e.g., `lakehouse-iceberg-aws`, future `lakehouse-iceberg-gcp`) bundling only that cloud's `FileIO` and catalog provider implementations. | `lakehouse-iceberg` (transitively `lakehouse-core`). | Sibling cloud plugins (AWS plugin never depends on GCP plugin or vice versa). |
 | Future Engine Adapters | `lakehouse-<engine>` (`jar`) | Implements `lakehouse-core` managers for another table format or catalog engine. | `lakehouse-core`. | Sibling engine modules (adapters never cross-depend). |
 
 ### `lakehouse-core` Package Map (`x.ruiz.playground.data.engineering.lakehouse.core.*`)
