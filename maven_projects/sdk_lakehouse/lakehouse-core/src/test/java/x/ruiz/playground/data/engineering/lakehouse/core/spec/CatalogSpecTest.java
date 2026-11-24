@@ -1,4 +1,4 @@
-package x.ruiz.playground.data.engineering.lakehouse.core;
+package x.ruiz.playground.data.engineering.lakehouse.core.spec;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

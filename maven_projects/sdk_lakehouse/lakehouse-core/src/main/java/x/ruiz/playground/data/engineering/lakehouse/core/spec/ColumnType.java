@@ -1,4 +1,4 @@
-package x.ruiz.playground.data.engineering.lakehouse.core;
+package x.ruiz.playground.data.engineering.lakehouse.core.spec;
 
 import x.ruiz.playground.data.engineering.lakehouse.core.exception.InvalidTableSpecException;
 
