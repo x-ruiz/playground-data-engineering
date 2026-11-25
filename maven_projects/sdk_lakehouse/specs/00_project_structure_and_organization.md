@@ -80,7 +80,8 @@ sdk_lakehouse/
 ├── specs/
 │   ├── 00_project_structure_and_organization.md  # Cross-cutting architecture spec
 │   ├── 01_lakehouse_core_contracts.md            # Core module feature spec
-│   └── 02_iceberg_catalog_adapter.md             # Iceberg adapter + SPI plugin spec
+│   ├── 02_iceberg_catalog_adapter.md             # Iceberg adapter + AWS SPI plugin spec
+│   └── 03_iceberg_gcp_biglake_plugin.md          # GCP BigLake SPI plugin + Iceberg 1.10.1 spec
 ├── lakehouse-core/                          # Pure Java 17 engine-agnostic contracts
 │   ├── pom.xml
 │   └── src/
@@ -107,14 +108,23 @@ sdk_lakehouse/
 │       └── test/
 │           ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/
 │           └── resources/
-└── lakehouse-iceberg-aws/                   # Thin AWS / MinIO SPI plugin module (zero GCP deps)
+├── lakehouse-iceberg-aws/                   # Thin AWS / MinIO SPI plugin module (zero GCP deps)
+│   ├── pom.xml
+│   └── src/
+│       ├── main/
+│       │   ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/aws/
+│       │   └── resources/META-INF/services/ # AWS / MinIO ServiceLoader registrations
+│       └── test/
+│           ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/aws/
+│           └── resources/
+└── lakehouse-iceberg-gcp/                   # Thin GCP BigLake SPI plugin module (zero AWS deps)
     ├── pom.xml
     └── src/
         ├── main/
-        │   ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/aws/
-        │   └── resources/META-INF/services/ # AWS / MinIO ServiceLoader registrations
+        │   ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/gcp/
+        │   └── resources/META-INF/services/ # GCP BigLake ServiceLoader registrations
         └── test/
-            ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/aws/
+            ├── java/x/ruiz/playground/data/engineering/lakehouse/iceberg/gcp/
             └── resources/
 ```
 
