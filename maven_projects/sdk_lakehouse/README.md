@@ -169,6 +169,8 @@ mvn test -pl lakehouse-iceberg-gcp -am \
 ## Specifications (Spec-Driven Development)
 
 - [specs/00_project_structure_and_organization.md](specs/00_project_structure_and_organization.md) — Multi-module layout, package roles, visibility, and naming governance.
-- [specs/01_lakehouse_core_contracts.md](specs/01_lakehouse_core_contracts.md) — Core domain models, Template-Method managers, package-private YAML file manager, and exception hierarchy.
-- [specs/02_iceberg_catalog_adapter.md](specs/02_iceberg_catalog_adapter.md) — Cloud-agnostic Iceberg adapter, `ServiceLoader` catalog SPI, and `lakehouse-iceberg-aws` plugin.
-- [specs/03_iceberg_gcp_biglake_plugin.md](specs/03_iceberg_gcp_biglake_plugin.md) — `lakehouse-iceberg-gcp` BigLake REST plugin (`GCSFileIO` + `GoogleAuthManager`) and Iceberg `1.10.1` upgrade.
+- [specs/01_lakehouse_core_domain_models.md](specs/01_lakehouse_core_domain_models.md) — Composable immutable domain models, canonical `ColumnType`, and exception hierarchy.
+- [specs/02_lakehouse_core_managers_and_yaml.md](specs/02_lakehouse_core_managers_and_yaml.md) — Engine-agnostic Template-Method managers and encapsulated YAML parsing.
+- [specs/03_iceberg_core_adapter_and_spi.md](specs/03_iceberg_core_adapter_and_spi.md) — Cloud-agnostic Iceberg adapter, `ServiceLoader` catalog SPI, and built-in providers.
+- [specs/04_iceberg_aws_plugin.md](specs/04_iceberg_aws_plugin.md) — Thin `lakehouse-iceberg-aws` SPI plugin (`local_minio`, `aws_rest`) and opt-in Docker IT.
+- [specs/05_iceberg_gcp_biglake_plugin.md](specs/05_iceberg_gcp_biglake_plugin.md) — Thin `lakehouse-iceberg-gcp` BigLake REST SPI plugin (`GCSFileIO` + `GoogleAuthManager`) and Iceberg `1.10.1` upgrade.
