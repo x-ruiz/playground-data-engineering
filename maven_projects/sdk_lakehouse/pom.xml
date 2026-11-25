@@ -17,6 +17,7 @@
   <modules>
     <module>lakehouse-core</module>
     <module>lakehouse-iceberg</module>
+    <module>lakehouse-iceberg-aws</module>
   </modules>
 
   <properties>
@@ -30,6 +31,11 @@
       <dependency>
         <groupId>x.ruiz.playground.data.engineering</groupId>
         <artifactId>lakehouse-iceberg</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>x.ruiz.playground.data.engineering</groupId>
+        <artifactId>lakehouse-iceberg-aws</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
