@@ -28,12 +28,12 @@
 - Role-based Java subpackage organization inside `lakehouse-core` (`.model`, `.manager`, `.exception`) with package-private parser encapsulation inside `.manager` and explicit intra-core dependency rules.
 - Default flat package organization and subpackage-growth criteria for engine adapter modules (`lakehouse-<engine>`).
 - Class visibility, naming conventions, resource/proto layout, and test-package mirroring rules.
-- Synchronization requirement for updating dependent module specs (starting with `lakehouse-core/specs/01_lakehouse_core_contracts.md`) upon adoption.
+- Synchronization requirement for updating dependent specs in root `specs/` upon structural adoption.
 
 ### Non-Goals (Do Not Implement)
 - **No JPMS (`module-info.java`) modularization:** Artifacts remain standard Java 17 classpath JARs.
 - **No new engine modules or `lakehouse-iceberg` features:** Do NOT scaffold `lakehouse-delta`, `lakehouse-biglake`, or Iceberg managers in this spec.
-- **No behavioral contract changes:** Domain validation, idempotency, exception semantics, and parser behavior remain owned by module feature specs (e.g., `lakehouse-core/specs/01_lakehouse_core_contracts.md`).
+- **No behavioral contract changes:** Domain validation, idempotency, exception semantics, and parser behavior remain owned by feature specs (`specs/01_*.md` onward).
 - **No automated architecture-lint plugins yet:** Adding ArchUnit, Checkstyle, or Spotless to Maven is deferred to a future quality-gates spec.
 - **No changes to local dev infrastructure:** `docker-compose.yaml`, `Makefile`, `notebooks/`, and `warehouse/` stay untouched.
 
@@ -43,7 +43,7 @@
 
 ### Repository & Module Structure
 - `REQ-01`: The Maven reactor (`sdk.lakehouse`) shall organize code into one engine-agnostic contract module (`lakehouse-core`), one cloud-agnostic sibling module per storage/table engine (`lakehouse-<engine>`, starting with `lakehouse-iceberg`), and optional thin cloud-plugin modules (`lakehouse-<engine>-<cloud>`, such as `lakehouse-iceberg-aws` and future `lakehouse-iceberg-gcp`) discovered via Java `ServiceLoader` SPI. Engine modules depend on `lakehouse-core` and remain free of cloud-specific SDKs; cloud-plugin modules depend on their parent engine module (`lakehouse-<engine>`); `lakehouse-core` shall never depend on any engine module, Apache Iceberg, Apache Spark, or cloud-provider SDK.
-- `REQ-02`: All repository and feature specs shall reside in root `specs/NN_<snake_case>.md` (starting with `00_` for repository structure, `01_` for `lakehouse-core`, `02_` for `lakehouse-iceberg`); implementation plans shall reside in root `plans/NN_<snake_case>.md`.
+- `REQ-02`: All repository and feature specs shall reside in root `specs/NN_<snake_case>.md` (starting with `00_` for repository structure, followed by focused single-deliverable feature specs `01_`–`05_`); implementation plans shall reside in root `plans/NN_<snake_case>.md`.
 
 ### `lakehouse-core` Package Organization
 - `REQ-03`: All production Java types in `lakehouse-core` shall be organized into three role-based subpackages beneath `x.ruiz.playground.data.engineering.lakehouse.core`: `.model`, `.manager`, and `.exception`. No production classes shall reside directly in `...lakehouse.core`.
@@ -52,16 +52,16 @@
 - `REQ-06`: File parsers, serialization DTOs, and third-party serialization annotations/APIs (Jackson, Protobuf) shall remain package-private or `private` inside `...lakehouse.core.manager`—never exposed publicly to calling libraries and never leaking into `...lakehouse.core.model` or `...lakehouse.core.exception`.
 - `REQ-07`: `...lakehouse.core.exception` shall contain `LakehouseException` and all domain, parsing, not-found, and operation exception subclasses.
 - `REQ-08`: Intra-core package dependencies shall obey strict layering:
-  - `core.spec` and `core.exception` form the core foundation layer (specs throw `Invalid*ModelException`; `*NotFoundException` carries typed `*Model` references) and shall never import `core.manager`.
-  - `core.manager` may depend only on `core.spec` and `core.exception` (plus internal serialization libraries confined to its package-private parser classes).
+  - `core.model` and `core.exception` form the core foundation layer (models throw `Invalid*ModelException`; `*NotFoundException` carries typed `*Model` references) and shall never import `core.manager`.
+  - `core.manager` may depend only on `core.model` and `core.exception` (plus internal serialization libraries confined to its package-private parser classes).
 
 ### Engine Modules, Visibility, Naming & Tests
 - `REQ-09`: Engine adapter modules (`lakehouse-<engine>`) shall keep classes flat under `x.ruiz.playground.data.engineering.lakehouse.<engine>` by default, using package-private visibility for internal helpers (e.g., `IcebergTypeMapper`). Engine subpackages (e.g., `.catalog`, `.auth`) shall only be introduced when a distinct cohesive subsystem grows to 3+ related classes or requires an explicit boundary.
-- `REQ-10`: Internal file parsers, translation helpers, mapper utilities, and serialization DTOs shall default to package-private or `private` nested types; only deliberate SDK entry points (specs, managers, exceptions, and public engine adapters) shall be `public`.
+- `REQ-10`: Internal file parsers, translation helpers, mapper utilities, and serialization DTOs shall default to package-private or `private` nested types; only deliberate SDK entry points (models, managers, exceptions, and public engine adapters) shall be `public`.
 - `REQ-11`: Classes, resources, and tests shall follow uniform placement and naming conventions:
   - Protobuf schemas under `lakehouse-core/src/main/proto/*.proto`; runtime configs under `<module>/src/main/resources/`; test fixtures under `<module>/src/test/resources/`.
   - Unit tests under `<module>/src/test/java` shall mirror the exact package of the production types under test and use the `*Test` suffix (future integration tests shall use `*IT`).
-- `REQ-12`: Any package restructuring performed to comply with this spec shall update affected module specs (starting with `lakehouse-core/specs/01_lakehouse_core_contracts.md`) in the same change so specs remain accurate.
+- `REQ-12`: Any package restructuring performed to comply with this spec shall update affected specs under root `specs/` in the same change so specs remain accurate.
 
 ---
 
@@ -79,9 +79,11 @@ sdk_lakehouse/
 │   └── 01_<plan_name>.md                    # Sequential implementation plans
 ├── specs/
 │   ├── 00_project_structure_and_organization.md  # Cross-cutting architecture spec
-│   ├── 01_lakehouse_core_contracts.md            # Core module feature spec
-│   ├── 02_iceberg_catalog_adapter.md             # Iceberg adapter + AWS SPI plugin spec
-│   └── 03_iceberg_gcp_biglake_plugin.md          # GCP BigLake SPI plugin + Iceberg 1.10.1 spec
+│   ├── 01_lakehouse_core_domain_models.md        # Core immutable domain models & exceptions
+│   ├── 02_lakehouse_core_managers_and_yaml.md    # Template-Method managers & YAML parsing
+│   ├── 03_iceberg_core_adapter_and_spi.md        # Cloud-agnostic Iceberg adapter & catalog SPI
+│   ├── 04_iceberg_aws_plugin.md                  # AWS / MinIO SPI plugin module
+│   └── 05_iceberg_gcp_biglake_plugin.md          # GCP BigLake SPI plugin + Iceberg 1.10.1 upgrade
 ├── lakehouse-core/                          # Pure Java 17 engine-agnostic contracts
 │   ├── pom.xml
 │   └── src/
@@ -176,7 +178,7 @@ sdk_lakehouse/
 2. **Sealed Hierarchy Integrity:** Every `permits` member of `LakehouseModel` lives in `...core.model`; adding a new `LakehouseModel` subtype in another package is impossible in an unnamed Java 17 module.
 3. **Zero Serialization Leakage:** Jackson (`@Json*`, `ObjectMapper`, `YAMLMapper`) and future Protobuf types appear exclusively inside package-private parser classes in `...core.manager`—never in `...core.model`, `...core.exception`, or `public`/`protected` manager signatures.
 4. **Compile-Time Parser Encapsulation:** `FileModelManager` and `YamlFileModelManager` are package-private inside `...core.manager`, guaranteeing that external libraries and engine modules cannot import or invoke YAML parsers directly (on either classpath or module-path runtimes).
-5. **Single Source of Truth for Specs:** Root `specs/` holds only cross-cutting architecture specs (`00_*`); module feature specs live inside their owning module's `specs/` folder and must always match actual package paths.
+5. **Single Source of Truth for Specs:** All cross-cutting (`00_*`) and feature (`01_*`+) specs reside in root `specs/` and must always match actual package paths.
 6. **Mirrored Test Packages:** Unit tests live in the same package as the class under test so package-private helpers remain encapsulated while still directly testable.
 
 ### Failure Mode Matrix
@@ -189,7 +191,7 @@ sdk_lakehouse/
 | `YamlFileModelManager` or `FileModelManager` declared `public` (or leaked in a `public`/`protected` manager signature) | Code review / visibility audit failure (`TC-005`) | Keep parser types package-private inside `...core.manager` and expose only `Path`-based template methods publicly. |
 | Engine dependency added to `lakehouse-core/pom.xml` | Code review / POM audit failure (`TC-004`) | Move engine dependency into the target `lakehouse-<engine>/pom.xml`. |
 | Downstream module (`lakehouse-iceberg`) has stale imports after package refactor | Maven reactor compile failure (`TC-007`, `TC-008`) | Update imports in downstream modules and verify full-reactor `mvn clean test`. |
-| Module spec (`01_lakehouse_core_contracts.md`) still documents old flat package paths | Spec review drift failure (`TC-007`) | Update affected spec package tables in the same change. |
+| Root `specs/*.md` still documents old flat package paths | Spec review drift failure (`TC-007`) | Update affected spec package tables in the same change. |
 
 ---
 
@@ -197,11 +199,11 @@ sdk_lakehouse/
 
 | Case ID | Scenario | Input / Precondition | Expected Outcome |
 | :--- | :--- | :--- | :--- |
-| `TC-001` | Spec & plan directory hierarchy | Inspect repo root and child modules | Cross-cutting spec exists at `specs/00_project_structure_and_organization.md`, core feature spec at `lakehouse-core/specs/01_lakehouse_core_contracts.md`, and plans under root `plans/`. |
+| `TC-001` | Spec & plan directory hierarchy | Inspect repo root and child modules | All specs (`00_*` through `05_*`) reside under root `specs/` and plans under root `plans/`. |
 | `TC-002` | Zero root-package stragglers in `lakehouse-core` | List all `.java` files under `lakehouse-core/src/main/java` | Zero `.java` files exist directly in `...lakehouse.core`; every production class resides in `.model`, `.manager`, or `.exception`. |
 | `TC-003` | Sealed hierarchy co-location | Inspect `...lakehouse.core.model` and compile on Java 17 | `LakehouseModel`, `CatalogModel`, `NamespaceModel`, `TableModel`, `ColumnModel`, and `ColumnType` all reside in `...lakehouse.core.model` and compile cleanly. |
-| `TC-004` | Package & module dependency hygiene | Audit imports across `lakehouse-core/src/main/java` and `lakehouse-core/pom.xml` | Zero Iceberg/Spark dependencies in `lakehouse-core`; `core.spec` and `core.exception` never import `core.manager`. |
+| `TC-004` | Package & module dependency hygiene | Audit imports across `lakehouse-core/src/main/java` and `lakehouse-core/pom.xml` | Zero Iceberg/Spark dependencies in `lakehouse-core`; `core.model` and `core.exception` never import `core.manager`. |
 | `TC-005` | Encapsulation & serialization isolation | Audit Jackson references and class modifiers in `lakehouse-core` | `FileModelManager` and `YamlFileModelManager` are package-private in `...core.manager` (`YamlFileModelManager` is `final` with private DTO records); zero Jackson imports or `@Json*` annotations exist in `...core.model`, `...core.exception`, or `TableManager`/`NamespaceManager`. |
 | `TC-006` | Mirrored test packages | Inspect `lakehouse-core/src/test/java` | Every `*Test.java` class resides in the subpackage matching its production subject (`.model` or `.manager`). |
-| `TC-007` | Downstream & Spec 01 synchronization | Inspect `lakehouse-iceberg/src` and `lakehouse-core/specs/01_lakehouse_core_contracts.md` | `lakehouse-iceberg` compiles against the new `...core.*` subpackages, and Spec 01 documents the exact updated subpackage paths. |
+| `TC-007` | Downstream & feature spec synchronization | Inspect `lakehouse-iceberg/src` and root `specs/` | Downstream modules compile against the `...core.*` subpackages, and feature specs document the exact current package paths. |
 | `TC-008` | Full multi-module reactor verification | Run `mvn clean test` at repository root | Both `lakehouse-core` and `lakehouse-iceberg` compile cleanly on Java 17 and all unit tests pass with 0 failures and 0 errors. |
