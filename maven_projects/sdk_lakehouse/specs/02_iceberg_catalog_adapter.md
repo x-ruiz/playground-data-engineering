@@ -96,66 +96,89 @@
 ### Multi-Module Plugin Architecture
 
 ```mermaid
+%%{init: {"theme": "base", "themeCSS": "svg { background-color: #09090B !important; border-radius: 8px; }", "themeVariables": {"darkMode": true, "background": "#09090B", "mainBkg": "#18181B", "textColor": "#F4F4F5", "primaryColor": "#18181B", "primaryTextColor": "#F4F4F5", "primaryBorderColor": "#7C3AED", "lineColor": "#A855F7", "secondaryColor": "#16141F", "tertiaryColor": "#0F0F14", "edgeLabelBackground": "#18181B", "clusterBkg": "#0F0F14", "clusterBorder": "#52525B", "titleColor": "#D8B4FE", "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif", "fontSize": "13px"}, "flowchart": {"curve": "basis", "nodeSpacing": 42, "rankSpacing": 56, "padding": 14}}}%%
 flowchart TB
-    subgraph Pipeline["Unified Platform Pipeline (Airflow / Argo / Spark)"]
-        ENV["Environment Config\nCATALOG_BACKEND=local_minio | aws_rest | gcp_biglake\nCATALOG_NAME=data_lake\nuri, warehouse, s3.endpoint, ..."]
-        YAML["User GitOps Files\nnamespace.yaml / table.yaml"]
+    subgraph Pipeline["1. Unified Platform Pipeline (Airflow / Argo / Spark)"]
+        ENV(["Environment Config\nCATALOG_BACKEND · CATALOG_NAME\nuri · warehouse · s3.endpoint"])
+        YAML[("User GitOps Files\nnamespace.yaml / table.yaml")]
     end
 
-    subgraph Core["lakehouse-core (Engine-Agnostic)"]
-        TM["TableManager (abstract)\ncreateTable(Path)"]
-        NM["NamespaceManager (abstract)\ncreateNamespace(Path)"]
-        FM["YamlFileModelManager (package-private)"]
-        MOD["CatalogModel / NamespaceModel / TableModel"]
+    subgraph Core["2. lakehouse-core (Engine-Agnostic)"]
+        TM["TableManager · abstract\ncreateTable · Path"]
+        NM["NamespaceManager · abstract\ncreateNamespace · Path"]
+        FM["YamlFileModelManager\nPackage-Private Parser"]
+        MOD["Domain Models\nCatalogModel · NamespaceModel\nTableModel"]
     end
 
-    subgraph Iceberg["lakehouse-iceberg (Cloud-Agnostic — iceberg-core ONLY)"]
-        FAC["IcebergCatalogFactory\nloadCatalog(backend, CatalogModel, props)"]
-        SPI["IcebergCatalogProvider (SPI interface)\nbackendType() + loadCatalog(...)"]
-        BUILTIN["Built-in Providers (META-INF/services)\nInMemoryCatalogProvider ('in_memory')\nGenericCatalogProvider ('generic')"]
-        ITM["IcebergTableManager(Catalog)"]
-        INM["IcebergNamespaceManager(Catalog)"]
-        MAP["IcebergTypeMapper (package-private)"]
+    subgraph Iceberg["3. lakehouse-iceberg (Cloud-Agnostic — iceberg-core Only)"]
+        FAC["IcebergCatalogFactory\nloadCatalog · backend, CatalogModel, props"]
+        SPI["IcebergCatalogProvider · SPI\nbackendType + loadCatalog"]
+        BUILTIN["Built-in Providers · META-INF/services\nInMemoryCatalogProvider · in_memory\nGenericCatalogProvider · generic"]
+        ITM["IcebergTableManager · Catalog\nExact Catalog Guard + Idempotent DDL"]
+        INM["IcebergNamespaceManager · Catalog\nExact Catalog Guard + Idempotent DDL"]
+        MAP["IcebergTypeMapper\nPackage-Private Schema/Partition Mapper"]
     end
 
-    subgraph AwsPlugin["lakehouse-iceberg-aws (Deploy in Local / AWS Jobs ONLY)"]
-        AWS_SPI["META-INF/services/...IcebergCatalogProvider"]
-        MINIO["LocalMinioCatalogProvider ('local_minio')\n+ iceberg-aws (S3FileIO)"]
-        AWS["AwsRestCatalogProvider ('aws_rest')\n+ iceberg-aws (S3FileIO)"]
+    subgraph AwsPlugin["4a. lakehouse-iceberg-aws (Local / AWS Jobs Only)"]
+        AWS_SPI["META-INF/services\nIcebergCatalogProvider Registry"]
+        MINIO["LocalMinioCatalogProvider · local_minio\n+ iceberg-aws · S3FileIO"]
+        AWS["AwsRestCatalogProvider · aws_rest\n+ iceberg-aws · S3FileIO"]
     end
 
-    subgraph GcpPlugin["lakehouse-iceberg-gcp (Future Spec 3 — Deploy in GCP Jobs ONLY)"]
-        GCP_SPI["META-INF/services/...IcebergCatalogProvider"]
-        GCP["GcpBigLakeCatalogProvider ('gcp_biglake')\n+ iceberg-gcp (GCSFileIO)"]
+    subgraph GcpPlugin["4b. lakehouse-iceberg-gcp (Future Spec 3 — GCP Jobs Only)"]
+        GCP_SPI["META-INF/services\nIcebergCatalogProvider Registry"]
+        GCP["GcpBigLakeCatalogProvider · gcp_biglake\n+ iceberg-gcp · GCSFileIO"]
     end
 
-    ENV --> FAC
-    YAML --> INM
-    YAML --> ITM
+    ENV ==>|"backend + props"| FAC
+    YAML ==>|"namespace.yaml"| INM
+    YAML ==>|"table.yaml"| ITM
 
-    FAC -- "ServiceLoader scans classpath" --> SPI
-    BUILTIN -. "implements" .-> SPI
-    AWS_SPI -. "discovered when AWS JAR is on classpath" .-> SPI
-    GCP_SPI -. "discovered when GCP JAR is on classpath" .-> SPI
-    MINIO --> AWS_SPI
-    AWS --> AWS_SPI
-    GCP --> GCP_SPI
+    FAC -->|"ServiceLoader scan"| SPI
+    BUILTIN -.->|"implements"| SPI
+    AWS_SPI -.->|"classpath discovery (AWS JAR)"| SPI
+    GCP_SPI -.->|"classpath discovery (GCP JAR)"| SPI
+    MINIO -->|"registers"| AWS_SPI
+    AWS -->|"registers"| AWS_SPI
+    GCP -->|"registers"| GCP_SPI
 
-    FAC -- "returns org.apache.iceberg.catalog.Catalog" --> INM
-    FAC -- "returns org.apache.iceberg.catalog.Catalog" --> ITM
+    FAC ==>|"Catalog instance"| INM
+    FAC ==>|"Catalog instance"| ITM
 
-    INM -- "extends" --> NM
-    ITM -- "extends" --> TM
-    ITM --> MAP
-    TM --> FM
-    NM --> FM
-    FM --> MOD
+    INM -->|"extends"| NM
+    ITM -->|"extends"| TM
+    ITM -->|"maps schema"| MAP
+    TM -->|"delegates parse"| FM
+    NM -->|"delegates parse"| FM
+    FM -->|"validates"| MOD
+
+    classDef core fill:#2E1065,stroke:#A855F7,stroke-width:2px,color:#F5F3FF
+    classDef service fill:#18181B,stroke:#7C3AED,stroke-width:1.5px,color:#F4F4F5
+    classDef store fill:#09090B,stroke:#C084FC,stroke-width:1.5px,color:#EDE9FE
+    classDef external fill:#27272A,stroke:#71717A,stroke-width:1.5px,color:#E4E4E7
+    classDef async fill:#1E1B2E,stroke:#6B7280,stroke-width:1.25px,stroke-dasharray:4 3,color:#D4D4D8
+    classDef guard fill:#3B0764,stroke:#E879F9,stroke-width:2px,stroke-dasharray:5 3,color:#FAF5FF
+
+    class ENV external
+    class YAML store
+    class FAC,SPI core
+    class TM,NM,FM,MOD,ITM,INM,MAP service
+    class BUILTIN,MINIO,AWS,GCP async
+    class AWS_SPI,GCP_SPI guard
+
+    style Pipeline fill:#18181B,stroke:#52525B,stroke-width:1.25px,stroke-dasharray:5 4,color:#A1A1AA
+    style Core fill:#0F0F14,stroke:#52525B,stroke-width:1.5px,color:#D8B4FE
+    style Iceberg fill:#16141F,stroke:#6D28D9,stroke-width:1.25px,stroke-dasharray:4 3,color:#C4B5FD
+    style AwsPlugin fill:#0F0F14,stroke:#52525B,stroke-width:1.5px,color:#D8B4FE
+    style GcpPlugin fill:#0F0F14,stroke:#52525B,stroke-width:1.5px,color:#D8B4FE
 ```
 
 ### Runtime Flow: How Environment Config Maps to the Right Provider Class
 
 ```mermaid
+%%{init: {"theme": "base", "themeCSS": "svg { background-color: #09090B !important; border-radius: 8px; }", "themeVariables": {"darkMode": true, "background": "#09090B", "mainBkg": "#18181B", "textColor": "#F4F4F5", "primaryColor": "#18181B", "primaryTextColor": "#F4F4F5", "primaryBorderColor": "#7C3AED", "lineColor": "#A855F7", "actorBkg": "#18181B", "actorBorder": "#7C3AED", "actorTextColor": "#F4F4F5", "actorLineColor": "#52525B", "signalColor": "#A855F7", "signalTextColor": "#E4E4E7", "labelBoxBkgColor": "#2E1065", "labelBoxBorderColor": "#A855F7", "labelTextColor": "#F5F3FF", "loopTextColor": "#D8B4FE", "noteBkgColor": "#1E1B2E", "noteBorderColor": "#6D28D9", "noteTextColor": "#EDE9FE", "activationBkgColor": "#4C1D95", "activationBorderColor": "#C084FC", "sequenceNumberColor": "#FAF5FF", "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif", "fontSize": "13px"}}}%%
 sequenceDiagram
+    autonumber
     participant Pipe as Pipeline (Airflow / Argo)
     participant Fac as IcebergCatalogFactory
     participant SL as Java ServiceLoader
@@ -163,23 +186,24 @@ sequenceDiagram
     participant Util as Iceberg CatalogUtil
     participant Mgr as IcebergTableManager (extends TableManager)
 
-    Pipe->>Fac: loadCatalog("local_minio", CatalogModel("data_lake"), envProps)
+    Pipe->>+Fac: loadCatalog("local_minio", CatalogModel("data_lake"), envProps)
     Fac->>SL: ServiceLoader.load(IcebergCatalogProvider.class)
     Note over SL: Scans META-INF/services files in all JARs on classpath
     SL-->>Fac: [InMemoryCatalogProvider, GenericCatalogProvider, LocalMinioCatalogProvider, AwsRestCatalogProvider]
     Fac->>Fac: Match backendType() == "local_minio"
-    Fac->>Prov: loadCatalog(CatalogModel("data_lake"), envProps)
+    Fac->>+Prov: loadCatalog(CatalogModel("data_lake"), envProps)
     Prov->>Prov: Validate required keys (uri, warehouse, s3.endpoint) & apply defaults (type=rest, io-impl=S3FileIO, path-style=true)
     Prov->>Util: CatalogUtil.buildIcebergCatalog("data_lake", resolvedProps, null)
     Util-->>Prov: Initialized RESTCatalog (Catalog)
-    Prov-->>Fac: Catalog
-    Fac-->>Pipe: Catalog
+    Prov-->>-Fac: Catalog
+    Fac-->>-Pipe: Catalog
 
     Pipe->>Mgr: new IcebergTableManager(catalog)
-    Pipe->>Mgr: createTable(Path.of("table.yaml"))
+    Pipe->>+Mgr: createTable(Path.of("table.yaml"))
     Note over Mgr: Template method in TableManager parses YAML -> TableModel
     Mgr->>Mgr: Verify catalog.name().equals(model.catalog().name())
     Mgr->>Mgr: Verify namespace exists, map Schema & PartitionSpec, call catalog.createTable(...)
+    deactivate Mgr
 ```
 
 ```text

@@ -77,15 +77,32 @@ Spec 2 established a cloud-agnostic `lakehouse-iceberg` adapter (`IcebergTableMa
 ### Multi-Module Cloud Isolation Overview
 
 ```mermaid
+%%{init: {"theme": "base", "themeCSS": "svg { background-color: #09090B !important; border-radius: 8px; }", "themeVariables": {"darkMode": true, "background": "#09090B", "mainBkg": "#18181B", "textColor": "#F4F4F5", "primaryColor": "#18181B", "primaryTextColor": "#F4F4F5", "primaryBorderColor": "#7C3AED", "lineColor": "#A855F7", "secondaryColor": "#16141F", "tertiaryColor": "#0F0F14", "edgeLabelBackground": "#18181B", "clusterBkg": "#0F0F14", "clusterBorder": "#52525B", "titleColor": "#D8B4FE", "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif", "fontSize": "13px"}, "flowchart": {"curve": "basis", "nodeSpacing": 42, "rankSpacing": 56, "padding": 14}}}%%
 flowchart LR
-    CORE["lakehouse-core\n(Pure Java 17)"]
-    ICE["lakehouse-iceberg\n(iceberg-core 1.10.1)\nSPI + Managers"]
-    AWS["lakehouse-iceberg-aws\n(iceberg-aws 1.10.1)\nlocal_minio, aws_rest"]
-    GCP["lakehouse-iceberg-gcp\n(iceberg-gcp 1.10.1)\ngcp_biglake"]
+    subgraph CoreModules["1. Cloud-Agnostic Core (Zero AWS / GCP Deps)"]
+        CORE["lakehouse-core\nPure Java 17\nModels · Managers · Exceptions"]
+        ICE["lakehouse-iceberg\niceberg-core 1.10.1\nServiceLoader SPI + Managers"]
+    end
 
-    ICE --> CORE
-    AWS --> ICE
-    GCP --> ICE
+    subgraph CloudPlugins["2. Isolated Cloud SPI Plugins (${iceberg.version} = 1.10.1)"]
+        AWS["lakehouse-iceberg-aws\niceberg-aws 1.10.1 · S3FileIO\nlocal_minio · aws_rest"]
+        GCP["lakehouse-iceberg-gcp\niceberg-gcp 1.10.1 · GCSFileIO\ngcp_biglake · GoogleAuthManager"]
+    end
+
+    ICE ==>|"depends on"| CORE
+    AWS -.->|"SPI plugin · zero GCP deps"| ICE
+    GCP ==>|"SPI plugin · zero AWS deps"| ICE
+
+    classDef core fill:#2E1065,stroke:#A855F7,stroke-width:2px,color:#F5F3FF
+    classDef service fill:#18181B,stroke:#7C3AED,stroke-width:1.5px,color:#F4F4F5
+    classDef async fill:#1E1B2E,stroke:#6B7280,stroke-width:1.25px,stroke-dasharray:4 3,color:#D4D4D8
+
+    class ICE,GCP core
+    class CORE service
+    class AWS async
+
+    style CoreModules fill:#0F0F14,stroke:#52525B,stroke-width:1.5px,color:#D8B4FE
+    style CloudPlugins fill:#16141F,stroke:#6D28D9,stroke-width:1.25px,stroke-dasharray:4 3,color:#C4B5FD
 ```
 
 ### Public Type (`x.ruiz.playground.data.engineering.lakehouse.iceberg.gcp`)

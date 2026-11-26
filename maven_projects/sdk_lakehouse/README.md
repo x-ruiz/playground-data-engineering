@@ -18,48 +18,71 @@ A multi-module **Java 17** SDK for declarative GitOps management of lakehouse na
 ### Multi-Module & SPI Plugin Architecture
 
 ```mermaid
+%%{init: {"theme": "base", "themeCSS": "svg { background-color: #09090B !important; border-radius: 8px; }", "themeVariables": {"darkMode": true, "background": "#09090B", "mainBkg": "#18181B", "textColor": "#F4F4F5", "primaryColor": "#18181B", "primaryTextColor": "#F4F4F5", "primaryBorderColor": "#7C3AED", "lineColor": "#A855F7", "secondaryColor": "#16141F", "tertiaryColor": "#0F0F14", "edgeLabelBackground": "#18181B", "clusterBkg": "#0F0F14", "clusterBorder": "#52525B", "titleColor": "#D8B4FE", "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif", "fontSize": "13px"}, "flowchart": {"curve": "basis", "nodeSpacing": 42, "rankSpacing": 56, "padding": 14}}}%%
 flowchart TB
-    subgraph Pipeline["Unified Platform Pipeline (Airflow / Argo / Spark)"]
-        ENV["Environment Config\nCATALOG_BACKEND=local_minio | aws_rest | gcp_biglake | in_memory\nCATALOG_NAME=data_lake\nuri, warehouse, project / endpoint, ..."]
-        YAML["User GitOps Files\nnamespace.yaml & table.yaml"]
+    subgraph Pipeline["1. Unified Platform Pipeline (Airflow / Argo / Spark)"]
+        ENV(["Environment Config\nCATALOG_BACKEND · CATALOG_NAME\nlocal_minio | aws_rest | gcp_biglake | in_memory"])
+        YAML[("User GitOps Files\nnamespace.yaml & table.yaml")]
     end
 
-    subgraph Core["lakehouse-core (Pure Java 17 — Engine-Agnostic)"]
-        MOD["core.model\nLakehouseModel (sealed)\nCatalogModel -> NamespaceModel -> TableModel -> ColumnModel\nColumnType"]
-        MGR["core.manager\nTableManager (abstract)\nNamespaceManager (abstract)\nFileModelManager / YamlFileModelManager (package-private)"]
-        EXC["core.exception\nLakehouseException\nCatalogNotFoundException / NamespaceNotFoundException\nModelParseException / CatalogOperationException"]
+    subgraph Core["2. lakehouse-core (Pure Java 17 — Engine-Agnostic)"]
+        MOD["core.model\nLakehouseModel sealed · ColumnType\nCatalog -> Namespace -> Table -> Column"]
+        MGR["core.manager\nTableManager · NamespaceManager · abstract\nYamlFileModelManager · pkg-private"]
+        EXC["core.exception\nLakehouseException Hierarchy\nCatalogNotFound · NamespaceNotFound\nModelParse · CatalogOperation"]
     end
 
-    subgraph Iceberg["lakehouse-iceberg (Cloud-Agnostic — iceberg-core 1.10.1)"]
-        FAC["iceberg.catalog\nIcebergCatalogFactory (ServiceLoader)\nIcebergCatalogProvider (SPI)\nInMemoryCatalogProvider ('in_memory')\nGenericCatalogProvider ('generic')"]
-        ITM["iceberg\nIcebergTableManager(Catalog)\nIcebergNamespaceManager(Catalog)\nIcebergTypeMapper (package-private)"]
+    subgraph Iceberg["3. lakehouse-iceberg (Cloud-Agnostic — iceberg-core 1.10.1)"]
+        FAC["iceberg.catalog · ServiceLoader SPI\nIcebergCatalogFactory · Provider SPI\nBuilt-in: in_memory · generic"]
+        ITM["iceberg Adapters\nIcebergTableManager · IcebergNamespaceManager\nIcebergTypeMapper · pkg-private"]
     end
 
-    subgraph AwsPlugin["lakehouse-iceberg-aws (Local / AWS Jobs ONLY)"]
-        AWS["iceberg.aws + iceberg-aws (S3FileIO)\nLocalMinioCatalogProvider ('local_minio')\nAwsRestCatalogProvider ('aws_rest')\nMETA-INF/services/...IcebergCatalogProvider"]
+    subgraph AwsPlugin["4a. lakehouse-iceberg-aws (Local / AWS Jobs Only)"]
+        AWS["iceberg.aws + iceberg-aws · S3FileIO\nLocalMinioCatalogProvider · local_minio\nAwsRestCatalogProvider · aws_rest\nMETA-INF/services SPI"]
     end
 
-    subgraph GcpPlugin["lakehouse-iceberg-gcp (GCP BigLake Jobs ONLY)"]
-        GCP["iceberg.gcp + iceberg-gcp (GCSFileIO + GoogleAuthManager)\nGcpBigLakeCatalogProvider ('gcp_biglake')\nMETA-INF/services/...IcebergCatalogProvider"]
+    subgraph GcpPlugin["4b. lakehouse-iceberg-gcp (GCP BigLake Jobs Only)"]
+        GCP["iceberg.gcp + iceberg-gcp · GCSFileIO\nGcpBigLakeCatalogProvider · gcp_biglake\nNative GoogleAuthManager\nMETA-INF/services SPI"]
     end
 
-    ENV --> FAC
-    YAML --> ITM
+    ENV ==>|"backend + props"| FAC
+    YAML ==>|"Path inputs"| ITM
 
-    FAC -- "ServiceLoader scans classpath" --> AWS
-    FAC -- "ServiceLoader scans classpath" --> GCP
-    FAC -- "returns org.apache.iceberg.catalog.Catalog" --> ITM
+    FAC -.->|"ServiceLoader classpath scan"| AWS
+    FAC -.->|"ServiceLoader classpath scan"| GCP
+    FAC ==>|"org.apache.iceberg.catalog.Catalog"| ITM
 
-    ITM -- "extends" --> MGR
-    MGR --> MOD
-    MGR --> EXC
-    MOD --> EXC
+    ITM -->|"extends template managers"| MGR
+    MGR -->|"parses & validates"| MOD
+    MGR -.->|"deterministic failures"| EXC
+    MOD -.->|"invariant violations"| EXC
+
+    classDef core fill:#2E1065,stroke:#A855F7,stroke-width:2px,color:#F5F3FF
+    classDef service fill:#18181B,stroke:#7C3AED,stroke-width:1.5px,color:#F4F4F5
+    classDef store fill:#09090B,stroke:#C084FC,stroke-width:1.5px,color:#EDE9FE
+    classDef external fill:#27272A,stroke:#71717A,stroke-width:1.5px,color:#E4E4E7
+    classDef async fill:#1E1B2E,stroke:#6B7280,stroke-width:1.25px,stroke-dasharray:4 3,color:#D4D4D8
+    classDef guard fill:#3B0764,stroke:#E879F9,stroke-width:2px,stroke-dasharray:5 3,color:#FAF5FF
+
+    class ENV external
+    class YAML store
+    class FAC,MGR core
+    class ITM,MOD service
+    class EXC guard
+    class AWS,GCP async
+
+    style Pipeline fill:#18181B,stroke:#52525B,stroke-width:1.25px,stroke-dasharray:5 4,color:#A1A1AA
+    style Core fill:#0F0F14,stroke:#52525B,stroke-width:1.5px,color:#D8B4FE
+    style Iceberg fill:#16141F,stroke:#6D28D9,stroke-width:1.25px,stroke-dasharray:4 3,color:#C4B5FD
+    style AwsPlugin fill:#0F0F14,stroke:#52525B,stroke-width:1.5px,color:#D8B4FE
+    style GcpPlugin fill:#0F0F14,stroke:#52525B,stroke-width:1.5px,color:#D8B4FE
 ```
 
 ### Runtime Execution Flow (Template Method + SPI)
 
 ```mermaid
+%%{init: {"theme": "base", "themeCSS": "svg { background-color: #09090B !important; border-radius: 8px; }", "themeVariables": {"darkMode": true, "background": "#09090B", "mainBkg": "#18181B", "textColor": "#F4F4F5", "primaryColor": "#18181B", "primaryTextColor": "#F4F4F5", "primaryBorderColor": "#7C3AED", "lineColor": "#A855F7", "actorBkg": "#18181B", "actorBorder": "#7C3AED", "actorTextColor": "#F4F4F5", "actorLineColor": "#52525B", "signalColor": "#A855F7", "signalTextColor": "#E4E4E7", "labelBoxBkgColor": "#2E1065", "labelBoxBorderColor": "#A855F7", "labelTextColor": "#F5F3FF", "loopTextColor": "#D8B4FE", "noteBkgColor": "#1E1B2E", "noteBorderColor": "#6D28D9", "noteTextColor": "#EDE9FE", "activationBkgColor": "#4C1D95", "activationBorderColor": "#C084FC", "sequenceNumberColor": "#FAF5FF", "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif", "fontSize": "13px"}}}%%
 sequenceDiagram
+    autonumber
     participant Pipe as Pipeline (Airflow / Argo)
     participant Fac as IcebergCatalogFactory
     participant SL as Java ServiceLoader
@@ -67,20 +90,22 @@ sequenceDiagram
     participant Mgr as IcebergTableManager (extends TableManager)
     participant Cat as Iceberg RESTCatalog
 
-    Pipe->>Fac: loadCatalog(backend, CatalogModel("data_lake"), envProps)
+    Pipe->>+Fac: loadCatalog(backend, CatalogModel("data_lake"), envProps)
     Fac->>SL: ServiceLoader.load(IcebergCatalogProvider.class)
     SL-->>Fac: Providers discovered from deployed plugin JARs
-    Fac->>Prov: loadCatalog(CatalogModel("data_lake"), envProps)
+    Fac->>+Prov: loadCatalog(CatalogModel("data_lake"), envProps)
     Prov->>Prov: Validate required keys & apply cloud defaults (FileIO / Auth)
     Prov->>Cat: CatalogUtil.buildIcebergCatalog("data_lake", resolvedProps, null)
+    deactivate Prov
+    deactivate Fac
     Cat-->>Pipe: Initialized Catalog
 
     Pipe->>Mgr: new IcebergTableManager(catalog)
-    Pipe->>Mgr: createTable(Path.of("table.yaml"))
+    Pipe->>+Mgr: createTable(Path.of("table.yaml"))
     Note over Mgr: TableManager.createTable (final) parses & validates YAML via package-private YamlFileModelManager
     Mgr->>Mgr: Verify catalog.name().equals(model.catalog().name())
     Mgr->>Cat: Check namespaceExists -> tableExists -> createTable(Schema, PartitionSpec)
-    Cat-->>Pipe: Idempotent success (or CatalogNotFound / NamespaceNotFound)
+    Cat-->>-Pipe: Idempotent success (or CatalogNotFound / NamespaceNotFound)
 ```
 
 ---

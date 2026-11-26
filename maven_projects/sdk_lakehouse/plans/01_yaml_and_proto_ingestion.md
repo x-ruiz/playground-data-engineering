@@ -14,16 +14,48 @@ Both ingestion paths converge onto the exact same **immutable, engine-agnostic J
 ## Architecture & Key Concept: Why Separate "Wire/File Shape" from "Domain Data Class"?
 
 ```mermaid
+%%{init: {"theme": "base", "themeCSS": "svg { background-color: #09090B !important; border-radius: 8px; }", "themeVariables": {"darkMode": true, "background": "#09090B", "mainBkg": "#18181B", "textColor": "#F4F4F5", "primaryColor": "#18181B", "primaryTextColor": "#F4F4F5", "primaryBorderColor": "#7C3AED", "lineColor": "#A855F7", "secondaryColor": "#16141F", "tertiaryColor": "#0F0F14", "edgeLabelBackground": "#18181B", "clusterBkg": "#0F0F14", "clusterBorder": "#52525B", "titleColor": "#D8B4FE", "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif", "fontSize": "13px"}, "flowchart": {"curve": "basis", "nodeSpacing": 42, "rankSpacing": 56, "padding": 14}}}%%
 flowchart LR
-    YAML["tables/transactions.yaml"] -->|"Jackson YAMLMapper"| YamlDto["YamlTableDto<br/>(private record)"]
-    YamlDto -->|"YamlTableParser.parse()"| TS["TableSpec<br/>(Immutable Domain Model + Builder)"]
+    subgraph Inputs["1. Wire / File Shapes"]
+        YAML[("tables/transactions.yaml\nv1 Declarative YAML")]
+        Proto(["TableDefinitionProto\n.proto -> protoc · v2"])
+    end
 
-    Proto[".proto -> protoc<br/>TableDefinitionProto"] -->|"Protobuf Generated Class<br/>or .desc FileDescriptor"| ProtoMapper["ProtoTableMapper.map()"]
-    ProtoMapper -->|"validates & maps"| TS
+    subgraph Adapters["2. Ingestion & Mapping Adapters"]
+        YamlDto["YamlTableDto\nPrivate Jackson Record\nSNAKE_CASE Deserialization"]
+        ProtoMapper["ProtoTableMapper.map\nValidates & Maps Proto"]
+    end
 
-    TS --> TID["TableIdentifier (record)"]
-    TS --> COL["ColumnDefinition (record)"]
-    TS -.->|"consumed by"| TM["TableManager (interface)"]
+    subgraph Domain["3. Engine-Agnostic Domain Model (lakehouse-core)"]
+        TS["TableSpec\nImmutable Domain Model + Builder\nNo Wire / Engine Annotations"]
+        TID["TableIdentifier\nJava Record · namespace, name"]
+        COL["ColumnDefinition\nJava Record · name, type, nullable, doc"]
+        TM["TableManager\nCore Interface Contract"]
+    end
+
+    YAML ==>|"Jackson YAMLMapper"| YamlDto
+    YamlDto ==>|"YamlTableParser.parse()"| TS
+    Proto -.->|"Generated Class or\n.desc FileDescriptor"| ProtoMapper
+    ProtoMapper -.->|"validates & maps"| TS
+    TS -->|"owns identifier"| TID
+    TS -->|"owns columns"| COL
+    TS -.->|"consumed by"| TM
+
+    classDef core fill:#2E1065,stroke:#A855F7,stroke-width:2px,color:#F5F3FF
+    classDef service fill:#18181B,stroke:#7C3AED,stroke-width:1.5px,color:#F4F4F5
+    classDef store fill:#09090B,stroke:#C084FC,stroke-width:1.5px,color:#EDE9FE
+    classDef external fill:#27272A,stroke:#71717A,stroke-width:1.5px,color:#E4E4E7
+    classDef async fill:#1E1B2E,stroke:#6B7280,stroke-width:1.25px,stroke-dasharray:4 3,color:#D4D4D8
+
+    class YAML store
+    class Proto external
+    class YamlDto,TID,COL,TM service
+    class ProtoMapper async
+    class TS core
+
+    style Inputs fill:#18181B,stroke:#52525B,stroke-width:1.25px,stroke-dasharray:5 4,color:#A1A1AA
+    style Adapters fill:#16141F,stroke:#6D28D9,stroke-width:1.25px,stroke-dasharray:4 3,color:#C4B5FD
+    style Domain fill:#0F0F14,stroke:#52525B,stroke-width:1.5px,color:#D8B4FE
 ```
 
 ### How YAML → Java Data Class Works (Jackson)
