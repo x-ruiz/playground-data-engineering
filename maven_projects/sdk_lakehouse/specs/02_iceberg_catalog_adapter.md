@@ -1,99 +1,22 @@
-# Feature Spec: `lakehouse-iceberg` Core Adapter, Catalog SPI & `lakehouse-iceberg-aws` Plugin
+# Spec 02: `lakehouse-iceberg` Core Adapter, Catalog SPI & `lakehouse-iceberg-aws` Plugin
 
-- **Status:** Approved
-- **Modules / Components:** `lakehouse-iceberg` (Cloud-Agnostic Core Adapter) + `lakehouse-iceberg-aws` (AWS / Local MinIO SPI Plugin) — Java 17, Apache Iceberg `1.7.2`
-- **Archetype:** Software Library Contract (Engine Adapter + Plugin SPI)
-- **Tier:** Mini-Spec
-- **Owner:** Xavier Ruiz
-- **Depends On:** `specs/00_project_structure_and_organization.md`, `specs/01_lakehouse_core_contracts.md`
-
----
-
-## 1. Goal & Context
-
-### Problem Statement
-`lakehouse-core` provides engine-agnostic domain models (`CatalogModel`, `NamespaceModel`, `TableModel`, `ColumnModel`, `ColumnType`), Template-Method managers (`TableManager`, `NamespaceManager`), and deterministic exceptions (`CatalogNotFoundException`, `NamespaceNotFoundException`, `CatalogOperationException`). In production data platforms (Airflow, Argo, Spark), a single pipeline codebase must provision Iceberg namespaces and tables across local Docker REST + MinIO, AWS REST, and future GCP BigLake REST purely via environment configuration—while keeping runtime/shaded fat JARs lean so a GCP Spark job never loads AWS SDK JARs (and vice versa). Splitting cloud-specific catalog providers and `FileIO` dependencies into thin plugin modules discovered via Java's `ServiceLoader` SPI achieves both a single unified pipeline and minimal, conflict-free runtime JARs.
-
-### Success Metrics
-- `lakehouse-iceberg` compiles and passes all unit tests (`TC-001` through `TC-014`) with **zero** AWS or GCP dependencies (`iceberg-aws` and `iceberg-aws-bundle` removed from `lakehouse-iceberg/pom.xml`).
-- `lakehouse-iceberg-aws` cleanly plugs into `IcebergCatalogFactory` via `META-INF/services` (`ServiceLoader`), passing all provider validation and SPI discovery unit tests (`TC-015` through `TC-017`) with zero Docker dependency.
-- An opt-in Docker REST + MinIO integration test (`IcebergRestCatalogIT`, `TC-018`) verifies live end-to-end namespace and table creation in `lakehouse-iceberg-aws` without running during normal `mvn clean test`.
-- All new production classes pass strict Javadoc validation (`mvn javadoc:javadoc -Ddoclint=all`) with 0 errors and 0 warnings.
+| Field | Value |
+| :--- | :--- |
+| **Status** | `Approved` |
+| **Owner** | Xavier Ruiz |
+| **Component** | `lakehouse-iceberg` (Core Adapter) + `lakehouse-iceberg-aws` (AWS / MinIO SPI Plugin) |
+| **Stack** | Java 17 · Apache Iceberg `1.7.2` · Java `ServiceLoader` SPI · Maven Shade |
+| **Archetype / Tier** | Software Library Contract (Engine Adapter + Plugin SPI) · Full Spec (`19 REQs`, `18 TCs`) |
+| **Depends On** | [Spec 00](./00_project_structure_and_organization.md), [Spec 01](./01_lakehouse_core_contracts.md) |
 
 ---
 
-## 2. Scope & Explicit Non-Goals
+## 1. Overview & Design
 
-### In Scope
-- **Cloud-agnostic `lakehouse-iceberg` module** (depends on `lakehouse-core` + `iceberg-core`; removes `iceberg-aws` and `iceberg-aws-bundle`):
-  - Root package `...lakehouse.iceberg`:
-    - `IcebergNamespaceManager` (`public final class extends NamespaceManager`)
-    - `IcebergTableManager` (`public final class extends TableManager`)
-    - `IcebergTypeMapper` (*(package-private)* `final class`)
-  - Catalog SPI subsystem `...lakehouse.iceberg.catalog` (3+ cohesive classes per Spec 00):
-    - `IcebergCatalogProvider` (`public interface` SPI)
-    - `IcebergCatalogFactory` (`public final class`, `ServiceLoader`-backed)
-    - `InMemoryCatalogProvider` (`public final class implements IcebergCatalogProvider`, backend `"in_memory"`)
-    - `GenericCatalogProvider` (`public final class implements IcebergCatalogProvider`, backend `"generic"`)
-  - `META-INF/services/...IcebergCatalogProvider` registering `InMemoryCatalogProvider` and `GenericCatalogProvider`.
-- **Thin `lakehouse-iceberg-aws` plugin module** (added to root reactor `pom.xml`; depends on `lakehouse-iceberg` + `iceberg-aws` + `iceberg-aws-bundle`, with `maven-shade-plugin` `ServicesResourceTransformer`):
-  - Package `...lakehouse.iceberg.aws`:
-    - `LocalMinioCatalogProvider` (`public final class implements IcebergCatalogProvider`, backend `"local_minio"`)
-    - `AwsRestCatalogProvider` (`public final class implements IcebergCatalogProvider`, backend `"aws_rest"`)
-  - `META-INF/services/...IcebergCatalogProvider` registering `LocalMinioCatalogProvider` and `AwsRestCatalogProvider`.
-  - Opt-in live Docker REST + MinIO integration test `IcebergRestCatalogIT` (`@Tag("integration")`).
-- Deterministic unit tests (`*Test`) across both modules using `InMemoryCatalog` and provider property-resolution tests.
-- Synchronization of `specs/00_project_structure_and_organization.md` to document `lakehouse-<engine>-<cloud>` plugin modules and `...iceberg.catalog`.
+### TL;DR
+Data pipelines (Airflow, Argo, Spark) need one codebase that provisions Iceberg namespaces and tables across local MinIO, AWS REST, and future GCP BigLake catalogs purely via environment configuration—without dragging AWS SDKs into GCP runtime JARs. This spec delivers the cloud-agnostic `lakehouse-iceberg` adapter (`IcebergNamespaceManager`, `IcebergTableManager`, `IcebergTypeMapper`, and `ServiceLoader`-backed `IcebergCatalogFactory` SPI) alongside the isolated `lakehouse-iceberg-aws` plugin (`local_minio` and `aws_rest`). Downstream cloud plugins such as `lakehouse-iceberg-gcp` drop straight onto the classpath with zero changes to core Iceberg managers.
 
-### Non-Goals (Do Not Implement)
-- **No `lakehouse-iceberg-gcp` module yet:** GCP BigLake Iceberg REST (`GcpBigLakeCatalogProvider`, `iceberg-gcp`, Google ADC/OAuth auth) is deferred to Spec 3, where it will drop in cleanly as a sibling plugin JAR implementing `IcebergCatalogProvider`.
-- **No application-level catalog registry or stored catalog state:** Pipelines pass one environment-configured `Catalog` instance into `IcebergNamespaceManager` / `IcebergTableManager`.
-- **No `dropTable`, `tableExists`, `dropNamespace`, `alterTable`, or schema evolution:** Table creation follows strict idempotent `CREATE TABLE IF NOT EXISTS` no-op semantics without schema drift detection.
-- **No multi-column partitioning or partition transforms:** Only single identity partition column or `PartitionSpec.unpartitioned()`.
-- **No custom table/namespace properties propagation yet:** `createNamespace` passes empty properties and `createTable` uses catalog defaults.
-- **No Spark session / Spark SQL execution:** Managers use the native Apache Iceberg Java Catalog API.
-
----
-
-## 3. Functional Requirements
-
-### Catalog SPI & Factory (`lakehouse-iceberg` — `...iceberg.catalog`)
-- `REQ-01`: `IcebergCatalogProvider` shall be a `public interface` declaring `String backendType()` and `Catalog loadCatalog(CatalogModel catalogModel, Map<String, String> properties)`.
-- `REQ-02`: `IcebergCatalogFactory` shall be a `public final class` (private constructor) exposing:
-  - `public static Catalog loadCatalog(String backendType, CatalogModel catalogModel, Map<String, String> properties)`
-  - `public static Set<String> availableBackends()` (unmodifiable sorted set of discovered backend IDs)
-  - A package-private `loadCatalog(..., Iterable<IcebergCatalogProvider>)` overload for deterministic unit testing.
-- `REQ-03`: `IcebergCatalogFactory` shall discover providers via `java.util.ServiceLoader.load(IcebergCatalogProvider.class)`, normalize `backendType` via trim + lowercase (`Locale.ROOT`), fail fast with `CatalogOperationException` on `null`/blank `backendType`, duplicate provider registrations for the same `backendType`, or unknown `backendType` (listing discovered backends in the error message), and fail fast with `InvalidCatalogModelException` if `catalogModel` is `null`.
-- `REQ-04`: `InMemoryCatalogProvider` (`backendType() == "in_memory"`) shall load `org.apache.iceberg.inmemory.InMemoryCatalog` via `CatalogUtil.buildIcebergCatalog(catalogModel.name(), resolvedProps, null)`, defaulting `warehouse` to `"memory://warehouse"` when omitted, rejecting `null` keys/values in caller properties with `CatalogOperationException`, and wrapping Iceberg load failures in `CatalogOperationException` preserving cause.
-- `REQ-05`: `GenericCatalogProvider` (`backendType() == "generic"`) shall reject `null` `CatalogModel` with `InvalidCatalogModelException`, reject `null`/empty `properties` or `null` keys/values with `CatalogOperationException`, defensively copy properties, and delegate directly to `CatalogUtil.buildIcebergCatalog(catalogModel.name(), copiedProps, null)`, wrapping any Iceberg failure in `CatalogOperationException` preserving cause.
-
-### AWS / Local MinIO Plugin (`lakehouse-iceberg-aws` — `...iceberg.aws`)
-- `REQ-06`: `lakehouse-iceberg-aws` shall be a sibling Maven module depending on `lakehouse-iceberg`, `iceberg-aws`, and `iceberg-aws-bundle`; `lakehouse-iceberg` shall have zero compile/runtime dependency on `iceberg-aws` or `iceberg-aws-bundle`.
-- `REQ-07`: `LocalMinioCatalogProvider` (`backendType() == "local_minio"`) shall require non-blank `uri`, `warehouse`, and `s3.endpoint` properties (failing fast with `CatalogOperationException` if missing/blank or if any property key/value is `null`), default `type` to `"rest"`, `io-impl` to `"org.apache.iceberg.aws.s3.S3FileIO"`, and `s3.path-style-access` to `"true"` (preserving additional caller properties such as credentials/region), and load the catalog via `CatalogUtil.buildIcebergCatalog(catalogModel.name(), resolvedProps, null)`.
-- `REQ-08`: `AwsRestCatalogProvider` (`backendType() == "aws_rest"`) shall require non-blank `uri` and `warehouse` properties (failing fast with `CatalogOperationException` if missing/blank or if any property key/value is `null`), default `type` to `"rest"` and `io-impl` to `"org.apache.iceberg.aws.s3.S3FileIO"`, default `rest.sigv4-enabled` to `"true"` when `rest.signing-region` is present and `rest.sigv4-enabled` is not explicitly set, preserve additional caller properties, and load via `CatalogUtil.buildIcebergCatalog(catalogModel.name(), resolvedProps, null)`.
-- `REQ-09`: Both `lakehouse-iceberg` and `lakehouse-iceberg-aws` shall register their providers in `src/main/resources/META-INF/services/x.ruiz.playground.data.engineering.lakehouse.iceberg.catalog.IcebergCatalogProvider`, and `maven-shade-plugin` in `lakehouse-iceberg-aws` shall include `ServicesResourceTransformer` so shaded fat JARs merge SPI registrations cleanly.
-
-### Manager Construction & Catalog Identity Guard (`lakehouse-iceberg`)
-- `REQ-10`: `IcebergNamespaceManager` (`public final class extends NamespaceManager`) and `IcebergTableManager` (`public final class extends TableManager`) shall each accept a single `org.apache.iceberg.catalog.Catalog` via constructor.
-- `REQ-11`: Both constructors shall fail fast with `CatalogOperationException` if `catalog` is `null`, if `catalog.name()` is `null` or blank, or if `catalog` does not implement `org.apache.iceberg.catalog.SupportsNamespaces`.
-- `REQ-12`: Before performing any Iceberg operation, both managers shall verify exact catalog-name equality (`catalog.name().equals(model.catalog().name())`). On mismatch, they shall throw `CatalogNotFoundException` carrying `model.catalog()` and never invoke any Iceberg mutation or auto-create a catalog.
-
-### Namespace & Table Management (`lakehouse-iceberg`)
-- `REQ-13`: `IcebergNamespaceManager.doNamespaceExists(NamespaceModel)` shall validate catalog identity (`REQ-12`), translate `model` to `Namespace.of(model.name())`, and return `supportsNamespaces.namespaceExists(namespace)`.
-- `REQ-14`: `IcebergNamespaceManager.doCreateNamespace(NamespaceModel)` shall validate catalog identity (`REQ-12`), return cleanly if the namespace already exists, otherwise call `supportsNamespaces.createNamespace(namespace)`, and treat `AlreadyExistsException` as an idempotent no-op.
-- `REQ-15`: `IcebergTableManager.doCreateTable(TableModel)` shall validate catalog identity (`REQ-12`), check `supportsNamespaces.namespaceExists(namespace)` and throw `NamespaceNotFoundException` carrying `model.namespace()` if missing (never auto-creating namespaces), return cleanly if `catalog.tableExists(tableId)` is `true`, otherwise map `TableModel` via `IcebergTypeMapper` and call `catalog.createTable(tableId, schema, partitionSpec)`.
-- `REQ-16`: In `IcebergTableManager.doCreateTable`, catching `AlreadyExistsException` shall be treated as an idempotent no-op, and catching `NoSuchNamespaceException` shall throw `NamespaceNotFoundException(model.namespace(), cause)`. In both managers, any other unexpected `RuntimeException` (excluding `LakehouseException`) shall be wrapped in `CatalogOperationException` preserving the original cause.
-
-### Schema, Type, Partition & Identifier Mapping (`IcebergTypeMapper`)
-- `REQ-17`: `IcebergTypeMapper` shall be a package-private `final class` (private constructor) in `...lakehouse.iceberg`.
-- `REQ-18`: `IcebergTypeMapper.toIcebergSchema(List<ColumnModel>)` shall assign deterministic sequential 1-based Iceberg field IDs (`1..N`), mapping `nullable == true` to `Types.NestedField.optional` and `nullable == false` to `Types.NestedField.required` using an exhaustive switch over `ColumnType` (`TIMESTAMP` → `TimestampType.withZone()`, `DECIMAL` → `DecimalType.of(38, 9)`).
-- `REQ-19`: `IcebergTypeMapper.toPartitionSpec(Schema, TableModel)` shall return `PartitionSpec.unpartitioned()` when unpartitioned and `PartitionSpec.builderFor(schema).identity(model.partitionColumn()).build()` when partitioned; `toIcebergNamespace` shall return `Namespace.of(model.name())`; `toIcebergTableIdentifier` shall return `TableIdentifier.of(Namespace.of(model.namespace().name()), model.name())`.
-
----
-
-## 4. Public Java API & Module Contract
-
-### Multi-Module Plugin Architecture
+### Architecture
 
 ```mermaid
 %%{init: {"theme": "base", "themeCSS": "svg { background-color: #09090B !important; border-radius: 8px; }", "themeVariables": {"darkMode": true, "background": "#09090B", "mainBkg": "#18181B", "textColor": "#F4F4F5", "primaryColor": "#18181B", "primaryTextColor": "#F4F4F5", "primaryBorderColor": "#7C3AED", "lineColor": "#A855F7", "secondaryColor": "#16141F", "tertiaryColor": "#0F0F14", "edgeLabelBackground": "#18181B", "clusterBkg": "#0F0F14", "clusterBorder": "#52525B", "titleColor": "#D8B4FE", "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif", "fontSize": "13px"}, "flowchart": {"curve": "basis", "nodeSpacing": 42, "rankSpacing": 56, "padding": 14}}}%%
@@ -173,7 +96,7 @@ flowchart TB
     style GcpPlugin fill:#0F0F14,stroke:#52525B,stroke-width:1.5px,color:#D8B4FE
 ```
 
-### Runtime Flow: How Environment Config Maps to the Right Provider Class
+### Runtime Flow
 
 ```mermaid
 %%{init: {"theme": "base", "themeCSS": "svg { background-color: #09090B !important; border-radius: 8px; }", "themeVariables": {"darkMode": true, "background": "#09090B", "mainBkg": "#18181B", "textColor": "#F4F4F5", "primaryColor": "#18181B", "primaryTextColor": "#F4F4F5", "primaryBorderColor": "#7C3AED", "lineColor": "#A855F7", "actorBkg": "#18181B", "actorBorder": "#7C3AED", "actorTextColor": "#F4F4F5", "actorLineColor": "#52525B", "signalColor": "#A855F7", "signalTextColor": "#E4E4E7", "labelBoxBkgColor": "#2E1065", "labelBoxBorderColor": "#A855F7", "labelTextColor": "#F5F3FF", "loopTextColor": "#D8B4FE", "noteBkgColor": "#1E1B2E", "noteBorderColor": "#6D28D9", "noteTextColor": "#EDE9FE", "activationBkgColor": "#4C1D95", "activationBorderColor": "#C084FC", "sequenceNumberColor": "#FAF5FF", "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif", "fontSize": "13px"}}}%%
@@ -206,9 +129,101 @@ sequenceDiagram
     deactivate Mgr
 ```
 
+### Key Design Decisions
+- **Cloud-isolated `ServiceLoader` SPI:** Moving AWS/MinIO `FileIO` and catalog providers into `lakehouse-iceberg-aws` keeps `lakehouse-iceberg` strictly on `iceberg-core` so GCP runtimes never inherit AWS SDK JARs.
+- **Exact catalog-name guard:** Managers verify `catalog.name().equals(model.catalog().name())` before any Iceberg call, preventing a `prod_lake` YAML from mutating a `dev_lake` catalog.
+- **Race-safe idempotency:** Both managers combine existence pre-checks with catching Iceberg's `AlreadyExistsException` (and translating TOCTOU `NoSuchNamespaceException`) for safe concurrent retries.
+- **Shade-safe SPI packaging:** `lakehouse-iceberg-aws` enables `ServicesResourceTransformer` in `maven-shade-plugin` so uber-JARs merge `META-INF/services` entries instead of overwriting built-in providers.
+
+### Done Looks Like
+- `lakehouse-iceberg` passes `TC-001`–`TC-014` with zero AWS or GCP dependencies (`iceberg-aws` and `iceberg-aws-bundle` removed from `lakehouse-iceberg/pom.xml`).
+- `lakehouse-iceberg-aws` passes `TC-015`–`TC-017` offline via `ServiceLoader` and property-resolution unit tests, and provides an opt-in Docker REST + MinIO integration test (`IcebergRestCatalogIT`, `TC-018`).
+- Every verification gate below passes with 0 errors and 0 warnings.
+
+| Gate | Command | Scope |
+| :--- | :--- | :--- |
+| Unit Tests | `mvn clean test` | Full reactor (`lakehouse-core`, `lakehouse-iceberg`, `lakehouse-iceberg-aws`) |
+| Strict Javadoc | `mvn javadoc:javadoc -Ddoclint=all` | All new production classes |
+| Live MinIO IT (opt-in) | `mvn test -pl lakehouse-iceberg-aws -Dtest=IcebergRestCatalogIT` | Docker REST `:8181` + MinIO `:9000` (`@Tag("integration")`) |
+
+---
+
+## 2. Scope
+
+### In Scope
+- Implement cloud-agnostic Iceberg managers (`IcebergNamespaceManager`, `IcebergTableManager`) and package-private `IcebergTypeMapper` in `lakehouse-iceberg` (removing `iceberg-aws` and `iceberg-aws-bundle` from its POM).
+- Introduce the `...lakehouse.iceberg.catalog` SPI subsystem (`IcebergCatalogProvider`, `IcebergCatalogFactory`, `InMemoryCatalogProvider`, `GenericCatalogProvider`) registered via `META-INF/services`.
+- Create the sibling `lakehouse-iceberg-aws` Maven module (registered in root `pom.xml` with `maven-shade-plugin` `ServicesResourceTransformer`) providing `LocalMinioCatalogProvider` (`"local_minio"`) and `AwsRestCatalogProvider` (`"aws_rest"`).
+- Add deterministic unit tests (`*Test`) across both modules plus an opt-in `@Tag("integration")` Docker REST + MinIO test (`IcebergRestCatalogIT`) excluded from normal `mvn clean test`.
+- Synchronize `specs/00_project_structure_and_organization.md` to document `lakehouse-<engine>-<cloud>` plugin modules and `...iceberg.catalog`.
+
+### Out of Scope (Non-Goals)
+- **No `lakehouse-iceberg-gcp` module yet:** `GcpBigLakeCatalogProvider`, `iceberg-gcp`, and Google ADC/OAuth auth belong to Spec 03.
+- **No application-level catalog registry or cached catalog state:** Callers pass one environment-configured `Catalog` instance into each manager and own closing it.
+- **No `dropTable`, `tableExists`, `dropNamespace`, `alterTable`, or schema evolution:** Table creation uses strict idempotent `CREATE TABLE IF NOT EXISTS` no-op semantics without schema drift checks.
+- **No multi-column partitioning or partition transforms:** Only single identity partition column or `PartitionSpec.unpartitioned()` is supported.
+- **No custom table or namespace properties propagation:** `createNamespace` passes empty properties and `createTable` uses catalog defaults.
+- **No Spark session or Spark SQL execution:** Managers call the native Apache Iceberg Java Catalog API directly.
+
+---
+
+## 3. Functional Requirements
+
+Exact types, property matrices, defaults, and type mappings live once in **Section 4**.
+
+### Catalog SPI & Factory (`lakehouse-iceberg` — `...iceberg.catalog`)
+
+| ID | What | Why | How |
+| :--- | :--- | :--- | :--- |
+| `REQ-01` | `IcebergCatalogProvider` SPI interface | Decouples catalog loading from cloud-specific dependencies | `public interface` declaring `backendType()` and `loadCatalog(CatalogModel, Map<String, String>)` |
+| `REQ-02` | `IcebergCatalogFactory` static facade | Provides a single stateless entry point and deterministic test hook | `public final class` (private ctor) exposing `loadCatalog(...)`, sorted unmodifiable `availableBackends()`, and package-private `Iterable` test overload |
+| `REQ-03` | `ServiceLoader` discovery & validation | Prevents silent misrouting or nondeterministic duplicate backend collisions | Load via `ServiceLoader`, normalize `backendType` (trim + `Locale.ROOT` lowercase), reject null `CatalogModel` (`InvalidCatalogModelException`), and reject blank/duplicate/unknown backends (`CatalogOperationException` listing available backends) |
+| `REQ-04` | Built-in `InMemoryCatalogProvider` | Enables fast, zero-Docker unit testing in every downstream module | Backend `"in_memory"` loads `InMemoryCatalog` via `CatalogUtil.buildIcebergCatalog`, defaults `warehouse`, rejects null map entries, and wraps load failures |
+| `REQ-05` | Built-in `GenericCatalogProvider` | Supports arbitrary Iceberg catalogs (Polaris, Nessie, Hive, JDBC) without custom plugins | Backend `"generic"` rejects null model or null/empty/null-entry properties, defensively copies properties, and delegates to `CatalogUtil.buildIcebergCatalog` |
+
+### AWS / Local MinIO Plugin (`lakehouse-iceberg-aws` — `...iceberg.aws`)
+
+| ID | What | Why | How |
+| :--- | :--- | :--- | :--- |
+| `REQ-06` | Isolated `lakehouse-iceberg-aws` module | Keeps AWS SDKs out of `lakehouse-iceberg` and non-AWS runtime JARs | Sibling Maven module depending on `lakehouse-iceberg`, `iceberg-aws`, and `iceberg-aws-bundle`; `lakehouse-iceberg` carries zero AWS deps |
+| `REQ-07` | `LocalMinioCatalogProvider` (`local_minio`) | Eliminates repetitive local Docker REST + MinIO S3 boilerplate | Requires non-blank `uri`, `warehouse`, and `s3.endpoint`; applies REST + `S3FileIO` + path-style defaults while preserving caller properties (§4.4) |
+| `REQ-08` | `AwsRestCatalogProvider` (`aws_rest`) | Simplifies AWS Iceberg REST + SigV4 configuration with safe defaults | Requires non-blank `uri` and `warehouse`; applies REST + `S3FileIO` defaults and auto-enables SigV4 when `rest.signing-region` is set (§4.4) |
+| `REQ-09` | `META-INF/services` & shade safety | Ensures `ServiceLoader` discovers all providers across both standard and shaded JARs | Register providers in both modules' `META-INF/services/...IcebergCatalogProvider` and configure `ServicesResourceTransformer` in `lakehouse-iceberg-aws` |
+
+### Manager Construction & Catalog Identity Guard (`lakehouse-iceberg`)
+
+| ID | What | Why | How |
+| :--- | :--- | :--- | :--- |
+| `REQ-10` | `IcebergNamespaceManager` & `IcebergTableManager` | Bridges `lakehouse-core` Template-Method contracts onto Iceberg's native `Catalog` API | Both are `public final` subclasses accepting a single `org.apache.iceberg.catalog.Catalog` via constructor |
+| `REQ-11` | Fail-fast manager constructor validation | Catches misconfigured or namespace-incapable catalogs before any DDL executes | Reject `null` catalog, null/blank `catalog.name()`, or catalogs not implementing `SupportsNamespaces` with `CatalogOperationException` |
+| `REQ-12` | Exact catalog-name identity guard | Prevents cross-environment DDL accidents (e.g., `prod_lake` YAML against `dev_lake`) | Verify `catalog.name().equals(model.catalog().name())` before any Iceberg call; throw `CatalogNotFoundException` carrying `model.catalog()` on mismatch |
+
+### Namespace & Table Management (`lakehouse-iceberg`)
+
+| ID | What | Why | How |
+| :--- | :--- | :--- | :--- |
+| `REQ-13` | `IcebergNamespaceManager.doNamespaceExists` | Checks namespace presence cleanly against Iceberg `SupportsNamespaces` | Validate catalog identity (`REQ-12`), map to `Namespace.of(model.name())`, and return `supportsNamespaces.namespaceExists(namespace)` |
+| `REQ-14` | `IcebergNamespaceManager.doCreateNamespace` | Guarantees idempotent, race-safe namespace provisioning | Validate catalog identity (`REQ-12`), no-op if exists, else call `createNamespace(namespace)` absorbing `AlreadyExistsException` |
+| `REQ-15` | `IcebergTableManager.doCreateTable` | Enforces strict parent namespace presence and idempotent table creation | Validate catalog (`REQ-12`), require existing namespace (`NamespaceNotFoundException` if missing), no-op if `tableExists`, else map via `IcebergTypeMapper` and call `catalog.createTable` |
+| `REQ-16` | Race-condition & unexpected error mapping | Keeps concurrent DDL safe and translates Iceberg runtime errors to SDK exceptions | Absorb `AlreadyExistsException`, map `NoSuchNamespaceException` to `NamespaceNotFoundException` with cause, and wrap other `RuntimeException` (non-`LakehouseException`) in `CatalogOperationException` |
+
+### Schema, Type, Partition & Identifier Mapping (`IcebergTypeMapper`)
+
+| ID | What | Why | How |
+| :--- | :--- | :--- | :--- |
+| `REQ-17` | Encapsulated `IcebergTypeMapper` utility | Keeps Iceberg schema/type translation testable without widening public API | Package-private `final class` (private constructor) in `...lakehouse.iceberg` |
+| `REQ-18` | Deterministic Iceberg `Schema` translation | Produces reproducible field IDs, nullability, and canonical Iceberg primitive types | Assign sequential 1-based IDs (`1..N`), map `nullable` to `optional`/`required`, and exhaustively switch `ColumnType` (§4.5) |
+| `REQ-19` | Partition & identifier translation | Translates domain identity models consistently into Iceberg API objects | Return `PartitionSpec.unpartitioned()` or identity partition spec, `Namespace.of(model.name())`, and `TableIdentifier.of(Namespace, tableName)` |
+
+---
+
+## 4. Contract & Blueprint
+
+### 4.1 Module & Package Layout
+
 ```text
 sdk_lakehouse/
-├── lakehouse-core/                     # Engine-agnostic models, Template-Method managers, YAML FileModelManager
+├── lakehouse-core/                     # Engine-agnostic models, Template-Method managers, YAML parser
 ├── lakehouse-iceberg/                  # Cloud-agnostic Iceberg adapter (iceberg-core ONLY; zero cloud SDKs)
 │   ├── ...lakehouse.iceberg/
 │   │   ├── IcebergNamespaceManager     (public final extends NamespaceManager)
@@ -229,30 +244,52 @@ sdk_lakehouse/
 └── lakehouse-iceberg-gcp/              # Future Spec 3: Thin GCP BigLake plugin JAR (zero AWS deps)
 ```
 
-### Public & Package-Private Types (`lakehouse-iceberg`)
+### 4.2 Public & Package-Private Ports (`lakehouse-iceberg`)
 
-| Type | Package & Visibility | Operations / Constructors | Contract |
+| Type | Operation / Constructor | Behavioral Contract |
+| :--- | :--- | :--- |
+| `IcebergNamespaceManager` (`public final`) | `public IcebergNamespaceManager(Catalog)` | Validates non-null `Catalog`, non-blank `catalog.name()`, and `SupportsNamespaces` (`CatalogOperationException`). |
+| `IcebergNamespaceManager` | `protected doCreateNamespace(NamespaceModel)` | Checks exact catalog name (`CatalogNotFoundException`), returns if exists, calls `createNamespace`, absorbs `AlreadyExistsException`, wraps unexpected errors in `CatalogOperationException`. |
+| `IcebergNamespaceManager` | `protected doNamespaceExists(NamespaceModel)` | Checks exact catalog name (`CatalogNotFoundException`), delegates to `supportsNamespaces.namespaceExists`, wraps unexpected errors in `CatalogOperationException`. |
+| `IcebergTableManager` (`public final`) | `public IcebergTableManager(Catalog)` | Validates non-null `Catalog`, non-blank `catalog.name()`, and `SupportsNamespaces` (`CatalogOperationException`). |
+| `IcebergTableManager` | `protected doCreateTable(TableModel)` | Checks exact catalog name (`CatalogNotFoundException`) and namespace existence (`NamespaceNotFoundException`); no-ops on existing table or `AlreadyExistsException`; translates `NoSuchNamespaceException`; wraps other errors in `CatalogOperationException`. |
+| `IcebergTypeMapper` *(pkg-private `final`)* | `static toIcebergType(ColumnType)` | Exhaustive switch mapping all 8 canonical `ColumnType` values (§4.5). |
+| `IcebergTypeMapper` | `static toIcebergSchema(List<ColumnModel>)` | Assigns 1-based sequential field IDs (`1..N`) with `optional` (`nullable=true`) or `required` (`nullable=false`). |
+| `IcebergTypeMapper` | `static toPartitionSpec(Schema, TableModel)` | Returns `PartitionSpec.unpartitioned()` or `PartitionSpec.builderFor(schema).identity(partitionColumn).build()`. |
+| `IcebergTypeMapper` | `static toIcebergNamespace(NamespaceModel)` | Returns `Namespace.of(model.name())`. |
+| `IcebergTypeMapper` | `static toIcebergTableIdentifier(TableModel)` | Returns `TableIdentifier.of(Namespace.of(model.namespace().name()), model.name())`. |
+| `IcebergCatalogProvider` (`public interface`) | `String backendType()` | Returns unique lowercase backend identifier (e.g., `"in_memory"`, `"local_minio"`). |
+| `IcebergCatalogProvider` | `Catalog loadCatalog(CatalogModel, Map<String, String>)` | Validates inputs/properties, applies backend defaults, and initializes an Iceberg `Catalog`. |
+| `IcebergCatalogFactory` (`public final`) | `static loadCatalog(String, CatalogModel, Map<String, String>)` | Discovers providers via `ServiceLoader`, normalizes backend ID, validates uniqueness/inputs, and invokes matching provider. |
+| `IcebergCatalogFactory` | `static availableBackends()` | Returns an unmodifiable sorted `Set<String>` of all discovered `backendType()` IDs. |
+| `IcebergCatalogFactory` | `loadCatalog(..., Iterable<IcebergCatalogProvider>)` *(pkg-private)* | Deterministic test seam bypassing classpath `ServiceLoader`. |
+
+### 4.3 Catalog Providers (`lakehouse-iceberg` & `lakehouse-iceberg-aws`)
+
+All providers are `public final class implements IcebergCatalogProvider` with public no-arg constructors; AWS plugin providers expose package-private `resolveProperties(Map<String, String>)` for offline unit testing.
+
+| Provider | Module & Package | Backend ID | Summary Behavior |
 | :--- | :--- | :--- | :--- |
-| `IcebergNamespaceManager` | `...iceberg` (`public final class extends NamespaceManager`) | `public IcebergNamespaceManager(Catalog)`<br/>Overrides `protected doCreateNamespace(NamespaceModel)` & `protected doNamespaceExists(NamespaceModel)` | Validates `Catalog` (non-null, non-blank name, `SupportsNamespaces`) at construction; enforces catalog name match (`CatalogNotFoundException`), idempotent creation (`AlreadyExistsException` no-op), and wraps unexpected errors in `CatalogOperationException`. |
-| `IcebergTableManager` | `...iceberg` (`public final class extends TableManager`) | `public IcebergTableManager(Catalog)`<br/>Overrides `protected doCreateTable(TableModel)` | Validates `Catalog` at construction; enforces catalog match (`CatalogNotFoundException`), strict namespace check (`NamespaceNotFoundException`), idempotent table creation (`tableExists` + `AlreadyExistsException`), and wraps unexpected errors in `CatalogOperationException`. |
-| `IcebergTypeMapper` | `...iceberg` *(package-private `final class`)* | `static toIcebergType(ColumnType)`<br/>`static toIcebergSchema(List<ColumnModel>)`<br/>`static toPartitionSpec(Schema, TableModel)`<br/>`static toIcebergNamespace(NamespaceModel)`<br/>`static toIcebergTableIdentifier(TableModel)` | Pure deterministic Iceberg schema, partition, and identifier translation with exhaustive `ColumnType` switch. |
-| `IcebergCatalogProvider` | `...iceberg.catalog` (`public interface`) | `String backendType()`<br/>`Catalog loadCatalog(CatalogModel, Map<String, String>)` | SPI contract implemented by built-in and cloud plugin JARs and discovered via `ServiceLoader`. |
-| `IcebergCatalogFactory` | `...iceberg.catalog` (`public final class`) | `static loadCatalog(String, CatalogModel, Map<String, String>)` → `Catalog`<br/>`static availableBackends()` → `Set<String>` | Stateless `ServiceLoader` facade routing `backendType` to the matching `IcebergCatalogProvider`. |
-| `InMemoryCatalogProvider` | `...iceberg.catalog` (`public final class`) | No-arg constructor; `backendType()` → `"in_memory"` | Loads `InMemoryCatalog` via `CatalogUtil.buildIcebergCatalog`; defaults `warehouse` to `"memory://warehouse"`. |
-| `GenericCatalogProvider` | `...iceberg.catalog` (`public final class`) | No-arg constructor; `backendType()` → `"generic"` | Passes caller-supplied properties straight to `CatalogUtil.buildIcebergCatalog` for arbitrary Iceberg catalogs (Polaris, Nessie, Hive, JDBC). |
+| `InMemoryCatalogProvider` | `lakehouse-iceberg` (`...iceberg.catalog`) | `"in_memory"` | Loads `InMemoryCatalog`; defaults `warehouse` to `"memory://warehouse"`; rejects null map entries. |
+| `GenericCatalogProvider` | `lakehouse-iceberg` (`...iceberg.catalog`) | `"generic"` | Defensively copies non-empty caller properties directly to `CatalogUtil.buildIcebergCatalog`. |
+| `LocalMinioCatalogProvider` | `lakehouse-iceberg-aws` (`...iceberg.aws`) | `"local_minio"` | Validates required REST/S3 keys, applies MinIO path-style defaults, preserves caller credentials/region. |
+| `AwsRestCatalogProvider` | `lakehouse-iceberg-aws` (`...iceberg.aws`) | `"aws_rest"` | Validates required REST keys, applies `S3FileIO` and conditional SigV4 defaults, preserves caller properties. |
 
-### Plugin Types (`lakehouse-iceberg-aws`)
+### 4.4 AWS Plugin Property Resolution (`LocalMinioCatalogProvider` & `AwsRestCatalogProvider`)
 
-| Type | Package & Visibility | Backend ID | Required Keys | Applied Defaults |
-| :--- | :--- | :--- | :--- | :--- |
-| `LocalMinioCatalogProvider` | `...iceberg.aws` (`public final class implements IcebergCatalogProvider`) | `"local_minio"` | `uri`, `warehouse`, `s3.endpoint` | `type=rest`, `io-impl=org.apache.iceberg.aws.s3.S3FileIO`, `s3.path-style-access=true` |
-| `AwsRestCatalogProvider` | `...iceberg.aws` (`public final class implements IcebergCatalogProvider`) | `"aws_rest"` | `uri`, `warehouse` | `type=rest`, `io-impl=org.apache.iceberg.aws.s3.S3FileIO`; `rest.sigv4-enabled=true` when `rest.signing-region` is set and `rest.sigv4-enabled` is omitted |
+| Property Key | `local_minio` | `aws_rest` | Notes |
+| :--- | :--- | :--- | :--- |
+| `uri` | **Required** (non-blank) | **Required** (non-blank) | Iceberg REST endpoint URL |
+| `warehouse` | **Required** (non-blank) | **Required** (non-blank) | S3/MinIO warehouse path |
+| `s3.endpoint` | **Required** (non-blank) | Optional (passthrough) | Local MinIO S3 endpoint |
+| `type` | Default `"rest"` | Default `"rest"` | Passed to `CatalogUtil.buildIcebergCatalog` |
+| `io-impl` | Default `org.apache.iceberg.aws.s3.S3FileIO` | Default `org.apache.iceberg.aws.s3.S3FileIO` | Overridable by caller |
+| `s3.path-style-access` | Default `"true"` | Optional (passthrough) | Required for local MinIO bucket routing |
+| `rest.sigv4-enabled` | Optional (passthrough) | Default `"true"` iff `rest.signing-region` is set and omitted | Explicit caller value (e.g., `"false"`) wins |
 
-*(Both providers expose package-private `resolveProperties(Map<String, String>)` for deterministic unit testing of property validation and defaulting without live network calls.)*
+### 4.5 Canonical `ColumnType` → Apache Iceberg `Type` Mapping
 
-### Canonical `ColumnType` → Apache Iceberg `Type` Mapping
-
-| `lakehouse-core` `ColumnType` | Apache Iceberg `org.apache.iceberg.types.Type` | Notes |
+| `ColumnType` | Apache Iceberg `org.apache.iceberg.types.Type` | Notes |
 | :--- | :--- | :--- |
 | `STRING` | `Types.StringType.get()` | UTF-8 string |
 | `INT` | `Types.IntegerType.get()` | 32-bit signed integer |
@@ -263,10 +300,10 @@ sdk_lakehouse/
 | `TIMESTAMP` | `Types.TimestampType.withZone()` | UTC instant (`timestamptz`), standard for Iceberg/BigQuery/Spark |
 | `DECIMAL` | `Types.DecimalType.of(38, 9)` | Default precision 38, scale 9 (BigQuery `NUMERIC`-compatible) |
 
-### Environment-Driven Pipeline Configuration Examples (External Config Only)
+### 4.6 External Pipeline Configuration Payloads
 
-**Local Dev Pipeline (`backend=local_minio`, requires `lakehouse-iceberg-aws` on classpath):**
 ```properties
+# Local Dev Pipeline (backend=local_minio; requires lakehouse-iceberg-aws)
 uri=http://localhost:8181
 warehouse=s3://warehouse/
 s3.endpoint=http://localhost:9000
@@ -275,68 +312,68 @@ s3.access-key-id=admin
 s3.secret-access-key=password
 ```
 
-**AWS Prod Pipeline (`backend=aws_rest`, requires `lakehouse-iceberg-aws` on classpath):**
 ```properties
+# AWS Prod Pipeline (backend=aws_rest; requires lakehouse-iceberg-aws)
 uri=https://iceberg-rest.internal.example.com
 warehouse=s3://prod-lakehouse-warehouse/
 rest.signing-region=us-east-1
 rest.signing-name=execute-api
 ```
 
-**Unit Test / Sandbox (`backend=in_memory`, built into `lakehouse-iceberg`):**
 ```properties
+# Unit Test / Sandbox (backend=in_memory; built into lakehouse-iceberg)
 warehouse=memory://warehouse
 ```
 
 ---
 
-## 5. Invariants, Edge Cases & Failure Modes
+## 5. Invariants & Failure Modes
 
 ### Key Invariants
-1. **Strict Cloud Isolation:** `lakehouse-iceberg` has zero AWS or GCP dependencies in `pom.xml` or source code; AWS/MinIO dependencies live exclusively in `lakehouse-iceberg-aws` (and future GCP dependencies in `lakehouse-iceberg-gcp`).
-2. **Zero Stored Catalog State:** `IcebergCatalogFactory` and all `IcebergCatalogProvider` implementations are stateless; callers own closing `Closeable`/`AutoCloseable` catalogs.
-3. **Cross-Environment Safety:** Exact catalog-name matching (`catalog.name().equals(model.catalog().name())`) prevents executing a YAML targeting `prod_lake` against a `dev_lake` catalog.
-4. **No Silent Creation of Missing Parents:** Missing catalogs always raise `CatalogNotFoundException`; missing namespaces always raise `NamespaceNotFoundException`.
-5. **Concurrent Idempotency:** Repeated or concurrent namespace/table creations absorb Iceberg's `AlreadyExistsException` cleanly.
-6. **No Exception Swallowing:** Every wrapped `CatalogOperationException` and TOCTOU `NamespaceNotFoundException` preserves the original `Throwable cause`.
-7. **SPI Shade Safety:** `lakehouse-iceberg-aws` configures `ServicesResourceTransformer` in `maven-shade-plugin` so shaded uber-JARs merge `META-INF/services` entries from both `lakehouse-iceberg` and `lakehouse-iceberg-aws` without overwriting one another.
+- **Strict cloud isolation:** `lakehouse-iceberg` has zero AWS or GCP dependencies in `pom.xml` or source; AWS/MinIO dependencies live exclusively in `lakehouse-iceberg-aws`.
+- **Zero stored catalog state:** `IcebergCatalogFactory` and all `IcebergCatalogProvider` implementations are stateless; callers own closing `Closeable`/`AutoCloseable` catalogs.
+- **Cross-environment safety:** Exact catalog-name matching (`catalog.name().equals(model.catalog().name())`) blocks running a `prod_lake` YAML against a `dev_lake` catalog.
+- **No silent parent creation:** Missing catalogs always throw `CatalogNotFoundException`; missing namespaces always throw `NamespaceNotFoundException`.
+- **Concurrent idempotency:** Repeated or racing namespace/table creations absorb Iceberg's `AlreadyExistsException` cleanly.
+- **No exception swallowing:** Every wrapped `CatalogOperationException` and TOCTOU `NamespaceNotFoundException` preserves the original `Throwable cause`.
+- **SPI shade safety:** `lakehouse-iceberg-aws` configures `ServicesResourceTransformer` in `maven-shade-plugin` so shaded JARs merge `META-INF/services` entries cleanly.
 
-### Failure Mode Matrix
+### Failure Modes
 
-| Failure Condition | Expected Exception | Notes |
+| Condition | Expected Behavior | Guarantee |
 | :--- | :--- | :--- |
-| `IcebergCatalogFactory.loadCatalog(null/blank, ...)` or unknown `backendType` | `CatalogOperationException` | Error message includes available discovered backends |
-| Duplicate `IcebergCatalogProvider` registrations for same `backendType` | `CatalogOperationException` | Fail fast; prevents nondeterministic provider selection |
-| `loadCatalog(..., null, ...)` (`CatalogModel` is `null`) | `InvalidCatalogModelException` | Fail fast before invoking provider |
-| Missing/blank required provider property (`uri`, `warehouse`, `s3.endpoint`) or `null` key/value | `CatalogOperationException` | Descriptive message naming missing key |
-| Underlying Iceberg `CatalogUtil.buildIcebergCatalog` failure | `CatalogOperationException` | Preserves underlying cause |
-| `new IcebergTableManager(null)` / `new IcebergNamespaceManager(null)` / blank catalog name / non-`SupportsNamespaces` catalog | `CatalogOperationException` | Fail fast at construction |
-| YAML `catalog` name differs from `catalog.name()` | `CatalogNotFoundException` | Carries `model.catalog()`; zero Iceberg calls made |
-| Target namespace missing during `createTable(Path)` (pre-check or `NoSuchNamespaceException`) | `NamespaceNotFoundException` | Carries `model.namespace()`; preserves cause on TOCTOU race |
-| Target namespace or table already exists (pre-check or `AlreadyExistsException`) | None (no-op) | Idempotent success |
-| Underlying Iceberg REST / S3 / network error | `CatalogOperationException` | Preserves original Iceberg exception cause |
+| `loadCatalog(null/blank, ...)` or unknown `backendType` | Throws `CatalogOperationException` | Error message lists available discovered backends |
+| Duplicate `IcebergCatalogProvider` registrations for same `backendType` | Throws `CatalogOperationException` | Fails fast; prevents nondeterministic provider selection |
+| `loadCatalog(..., null, ...)` (`CatalogModel` is `null`) | Throws `InvalidCatalogModelException` | Fails fast before invoking provider |
+| Missing/blank required property (`uri`, `warehouse`, `s3.endpoint`) or `null` key/value | Throws `CatalogOperationException` | Descriptive message naming offending key |
+| Underlying Iceberg `CatalogUtil.buildIcebergCatalog` failure | Throws `CatalogOperationException` | Preserves underlying cause |
+| Manager constructed with `null`, blank-named, or non-`SupportsNamespaces` catalog | Throws `CatalogOperationException` | Fails fast at construction |
+| YAML `catalog` name differs from `catalog.name()` | Throws `CatalogNotFoundException` | Carries `model.catalog()`; zero Iceberg calls made |
+| Target namespace missing during `createTable(Path)` (pre-check or `NoSuchNamespaceException`) | Throws `NamespaceNotFoundException` | Carries `model.namespace()`; preserves cause on TOCTOU race |
+| Target namespace or table already exists (pre-check or `AlreadyExistsException`) | No-op return | Idempotent success; zero mutation |
+| Underlying Iceberg REST, S3, or network error | Throws `CatalogOperationException` | Preserves original Iceberg exception cause |
 
 ---
 
-## 6. Acceptance Criteria & Verification Matrix
+## 6. Acceptance & Verification (`TC-*`)
 
-| Case ID | Scenario | Input / Precondition | Expected Outcome |
-| :--- | :--- | :--- | :--- |
-| `TC-001` | `IcebergCatalogFactory` SPI discovery (`lakehouse-iceberg` alone) | Call `availableBackends()` and `loadCatalog("in_memory", CatalogModel("data_lake"), Map.of())` | Discovers `"in_memory"` and `"generic"`; loads initialized `InMemoryCatalog` named `"data_lake"` with default warehouse. |
-| `TC-002` | `GenericCatalogProvider` passthrough & validation | `loadCatalog("generic", CatalogModel("data_lake"), Map.of("catalog-impl", "...InMemoryCatalog", "warehouse", "memory://w"))` plus null/empty/bad-property cases | Valid properties return initialized `Catalog`; `null` model throws `InvalidCatalogModelException`; `null`/empty/null-entry or invalid Iceberg properties throw `CatalogOperationException` preserving cause. |
-| `TC-003` | `IcebergCatalogFactory` unknown, blank & duplicate backend errors | `backendType = null`, `"  "`, `"gcp_biglake"` (when not on classpath), or two providers claiming `"in_memory"` | Throws `CatalogOperationException`; unknown-backend message lists available backends; case-insensitive trimmed lookup (`" IN_MEMORY "`) succeeds. |
-| `TC-004` | Manager constructor validation | Construct `IcebergNamespaceManager` / `IcebergTableManager` with `null`, blank-named, or non-`SupportsNamespaces` catalog | Throws `CatalogOperationException` at construction. |
-| `TC-005` | Catalog name mismatch guard | `InMemoryCatalog` named `"dev_lake"` + `namespace.yaml` / `table.yaml` targeting `"data_lake"` | `namespaceExists(Path)`, `namespaceExists(NamespaceModel)`, `createNamespace(Path)`, and `createTable(Path)` all throw `CatalogNotFoundException` carrying `CatalogModel("data_lake")`; zero namespaces or tables created. |
-| `TC-006` | `IcebergNamespaceManager` happy path & idempotency | `InMemoryCatalog` named `"data_lake"` + `namespace.yaml` (`data_lake.market_data`) | `namespaceExists(Path)` and `namespaceExists(NamespaceModel)` return `false` before creation; `createNamespace(Path)` twice succeeds without error; both return `true` afterward. |
-| `TC-007` | `IcebergTableManager` strict missing-namespace rejection | `InMemoryCatalog` named `"data_lake"` (no `market_data` namespace) + `table.yaml` | `createTable(Path)` throws `NamespaceNotFoundException` carrying `NamespaceModel(CatalogModel("data_lake"), "market_data")`; namespace is not auto-created. |
-| `TC-008` | `IcebergTableManager` partitioned table creation happy path | `InMemoryCatalog` named `"data_lake"` with `market_data` namespace + `table.yaml` | Table `market_data.transactions` exists with 3 columns (`date`: required `DATE`, `id`: required `LONG`, `amount`: optional `DECIMAL(38, 9)`), field IDs `1..3`, and identity partition spec on `date`. |
-| `TC-009` | `IcebergTableManager` unpartitioned table & default nullability | YAML omitting `partitionColumn` and omitting `nullable` on a column | Table created with `PartitionSpec.unpartitioned()` and optional Iceberg field for omitted `nullable`. |
-| `TC-010` | `IcebergTableManager` idempotency on repeated creation | Call `createTable(tableYaml)` twice against the same `InMemoryCatalog` | Second call succeeds cleanly as a no-op without throwing or altering the existing table. |
-| `TC-011` | `IcebergTypeMapper` exhaustive type & nullability mapping | All 8 `ColumnType` values with mixed `nullable` flags | Maps every type accurately (`TIMESTAMP` → `TimestampType.withZone()`, `DECIMAL` → `DecimalType.of(38, 9)`), preserves column order with 1-based field IDs, and maps `nullable=false`/`true` to `required`/`optional`. |
-| `TC-012` | Concurrent race-condition idempotency (`AlreadyExistsException`) | Stub `Catalog`/`SupportsNamespaces` whose existence check returns `false` and whose `createNamespace`/`createTable` throws `AlreadyExistsException` | Both managers absorb `AlreadyExistsException` and return cleanly. |
-| `TC-013` | TOCTOU `NoSuchNamespaceException` & unexpected exception wrapping | Stub `Catalog`/`SupportsNamespaces` throwing `NoSuchNamespaceException` on `createTable` and arbitrary `RuntimeException` across operations | `NoSuchNamespaceException` translates to `NamespaceNotFoundException` preserving cause; unexpected `RuntimeException` wraps in `CatalogOperationException` preserving cause. |
-| `TC-014` | `lakehouse-iceberg` cloud-isolation & Javadoc hygiene | Inspect `lakehouse-iceberg/pom.xml`, package visibility, and run `mvn javadoc:javadoc -pl lakehouse-iceberg -Ddoclint=all` | Zero `iceberg-aws` / `iceberg-gcp` dependencies in `lakehouse-iceberg`; `IcebergTypeMapper` is package-private; Javadoc builds with 0 errors and 0 warnings. |
-| `TC-015` | `lakehouse-iceberg-aws` SPI discovery | Run `IcebergCatalogFactory.availableBackends()` inside `lakehouse-iceberg-aws` tests | Discovers all 4 backends: `"aws_rest"`, `"generic"`, `"in_memory"`, `"local_minio"`. |
-| `TC-016` | `LocalMinioCatalogProvider` property validation & defaults | Unit-test `resolveProperties(...)` with valid props, overrides, missing `uri`/`warehouse`/`s3.endpoint`, and `null` keys/values | Applies `type=rest`, `io-impl=...S3FileIO`, `s3.path-style-access=true`, preserves credentials/region, and throws `CatalogOperationException` on missing required keys or null entries. |
-| `TC-017` | `AwsRestCatalogProvider` property validation & SigV4 defaults | Unit-test `resolveProperties(...)` with/without `rest.signing-region`, explicit `rest.sigv4-enabled=false`, and missing `uri`/`warehouse` | Applies `type=rest`, `io-impl=...S3FileIO`, defaults `rest.sigv4-enabled=true` when `rest.signing-region` is set unless explicitly overridden, and throws `CatalogOperationException` on missing required keys. |
-| `TC-018` | Opt-in Docker REST + MinIO integration test (`IcebergRestCatalogIT`, `@Tag("integration")`) | Local `docker compose up` (`rest` `:8181`, `minio` `:9000`); run explicitly via `mvn test -pl lakehouse-iceberg-aws -Dtest=IcebergRestCatalogIT` | Loads live `RESTCatalog` via `IcebergCatalogFactory.loadCatalog("local_minio", ...)`, creates namespace & partitioned table from YAML fixtures idempotently, and verifies metadata; skipped during normal `mvn clean test`. |
+| Case | Scenario | Pass Condition |
+| :--- | :--- | :--- |
+| `TC-001` (`REQ-01`–`04`) | SPI discovery (`lakehouse-iceberg` alone) | `availableBackends()` returns `["generic", "in_memory"]`; `loadCatalog("in_memory", CatalogModel("data_lake"), Map.of())` returns initialized `InMemoryCatalog` named `"data_lake"` with default warehouse. |
+| `TC-002` (`REQ-05`) | `GenericCatalogProvider` passthrough & validation | Valid properties return initialized `Catalog`; `null` model throws `InvalidCatalogModelException`; `null`/empty/null-entry or invalid Iceberg properties throw `CatalogOperationException` preserving cause. |
+| `TC-003` (`REQ-02`, `REQ-03`) | Factory unknown, blank & duplicate backend errors | `null`, `"  "`, unknown `"gcp_biglake"`, or duplicate `"in_memory"` providers throw `CatalogOperationException` (listing available backends for unknown); `" IN_MEMORY "` succeeds. |
+| `TC-004` (`REQ-10`, `REQ-11`) | Manager constructor validation | Constructing `IcebergNamespaceManager` or `IcebergTableManager` with `null`, blank-named, or non-`SupportsNamespaces` catalog throws `CatalogOperationException`. |
+| `TC-005` (`REQ-12`) | Catalog name mismatch guard | Against `InMemoryCatalog` `"dev_lake"`, all four manager operations targeting `"data_lake"` throw `CatalogNotFoundException` carrying `CatalogModel("data_lake")` with zero mutations. |
+| `TC-006` (`REQ-13`, `REQ-14`) | `IcebergNamespaceManager` happy path & idempotency | `namespaceExists(Path)` and `namespaceExists(NamespaceModel)` return `false` initially, `createNamespace(Path)` twice succeeds cleanly, and both return `true` afterward. |
+| `TC-007` (`REQ-15`) | `IcebergTableManager` missing-namespace rejection | `createTable(Path)` against `"data_lake"` without `"market_data"` throws `NamespaceNotFoundException` carrying `NamespaceModel("data_lake", "market_data")` without auto-creating it. |
+| `TC-008` (`REQ-15`, `REQ-18`, `REQ-19`) | Partitioned table creation happy path | Table `market_data.transactions` is created with 3 columns (`date` required `DATE`, `id` required `LONG`, `amount` optional `DECIMAL(38, 9)`), field IDs `1..3`, and identity partition on `date`. |
+| `TC-009` (`REQ-15`, `REQ-18`, `REQ-19`) | Unpartitioned table & default nullability | YAML omitting `partitionColumn` and column `nullable` creates a table with `PartitionSpec.unpartitioned()` and an optional Iceberg field. |
+| `TC-010` (`REQ-15`) | Repeated `createTable` idempotency | Calling `createTable(tableYaml)` twice against the same catalog succeeds as a no-op without throwing or altering the existing table. |
+| `TC-011` (`REQ-17`, `REQ-18`) | `IcebergTypeMapper` exhaustive mapping | All 8 `ColumnType` values map accurately (`TIMESTAMP` → `withZone()`, `DECIMAL` → `(38, 9)`), preserving column order with 1-based field IDs and `required`/`optional` nullability. |
+| `TC-012` (`REQ-14`, `REQ-16`) | Concurrent `AlreadyExistsException` idempotency | Stub catalog returning `false` on existence check and throwing `AlreadyExistsException` on create causes both managers to return cleanly. |
+| `TC-013` (`REQ-16`) | TOCTOU `NoSuchNamespaceException` & error wrapping | `NoSuchNamespaceException` translates to `NamespaceNotFoundException` preserving cause; arbitrary `RuntimeException` wraps in `CatalogOperationException` preserving cause. |
+| `TC-014` (`REQ-06`, `REQ-17`) | Cloud isolation & Javadoc hygiene | Zero `iceberg-aws`/`iceberg-gcp` deps in `lakehouse-iceberg/pom.xml`, `IcebergTypeMapper` is package-private, and `mvn javadoc:javadoc -pl lakehouse-iceberg -Ddoclint=all` exits with 0 errors and 0 warnings. |
+| `TC-015` (`REQ-06`, `REQ-09`) | `lakehouse-iceberg-aws` SPI discovery | `IcebergCatalogFactory.availableBackends()` inside `lakehouse-iceberg-aws` tests discovers `["aws_rest", "generic", "in_memory", "local_minio"]`. |
+| `TC-016` (`REQ-07`) | `LocalMinioCatalogProvider` property resolution | `resolveProperties` applies `type=rest`, `io-impl=...S3FileIO`, `s3.path-style-access=true`, preserves overrides/credentials, and throws `CatalogOperationException` on missing required keys or null entries. |
+| `TC-017` (`REQ-08`) | `AwsRestCatalogProvider` property resolution | `resolveProperties` applies `type=rest`, `io-impl=...S3FileIO`, defaults `rest.sigv4-enabled=true` when `rest.signing-region` is set unless explicitly overridden, and throws `CatalogOperationException` on missing required keys. |
+| `TC-018` (`REQ-07`, `REQ-09`) | Opt-in Docker REST + MinIO integration (`IcebergRestCatalogIT`) | Explicitly running `IcebergRestCatalogIT` (`@Tag("integration")`) against local Docker REST `:8181` + MinIO `:9000` creates namespace and partitioned table idempotently via `"local_minio"`; skipped during normal `mvn clean test`. |
